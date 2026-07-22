@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BROSTORM — 2 Player Run &amp; Gun</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="stage">
+  <canvas id="game"></canvas>
+
+  <!-- ---------------- in-game HUD ---------------- -->
+  <div id="hud" class="hidden">
+    <div class="hud-row">
+      <div id="hud-p1" class="hud-panel p1">
+        <div class="hud-tag">P1</div>
+        <div class="hud-body">
+          <div class="hud-name">—</div>
+          <div class="hud-sub"><span class="hud-weapon">—</span><span class="hud-ammo"></span></div>
+        </div>
+      </div>
+
+      <div id="hud-center">
+        <div id="lives-box"><span class="lbl">LIVES</span><span id="lives">5</span></div>
+        <div id="progress"><div id="progress-fill"></div><span class="goal-pin">EXTRACT</span></div>
+      </div>
+
+      <div id="hud-p2" class="hud-panel p2 inactive">
+        <div class="hud-tag">P2</div>
+        <div class="hud-body">
+          <div class="hud-name">—</div>
+          <div class="hud-sub"><span class="hud-weapon">—</span><span class="hud-ammo"></span></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="toasts"></div>
+    <div id="mute-flag">SOUND ON (M)</div>
+  </div>
+
+  <!-- ---------------- overlay screens ---------------- -->
+  <div id="screens">
+
+    <!-- title / character select -->
+    <section id="title">
+      <h1 class="logo">BROSTORM</h1>
+      <p class="subtitle">TWO-PLAYER RUN &amp; GUN · FULLY DESTRUCTIBLE TERRAIN</p>
+
+      <div class="slots">
+        <div id="p1-panel" class="slot joined">
+          <header><span class="badge p1">PLAYER 1</span><span class="slot-status">CHOOSING…</span></header>
+          <div id="p1-cards" class="cards"></div>
+          <footer class="keys">WASD move &amp; aim · <b>W</b> jump · <b>F</b> fire · <b>G</b> special</footer>
+        </div>
+
+        <div id="p2-panel" class="slot">
+          <header><span class="badge p2">PLAYER 2</span><span class="slot-status">PRESS FIRE TO JOIN</span></header>
+          <div id="p2-cards" class="cards"></div>
+          <footer class="keys">Arrows move &amp; aim · <b>↑</b> jump · <b>.</b> fire · <b>/</b> special</footer>
+        </div>
+      </div>
+
+      <p id="start-hint">PICK YOUR BRO · LEFT/RIGHT TO BROWSE · FIRE TO LOCK IN</p>
+
+      <ul class="briefing">
+        <li><b>Everything breaks.</b> Shoot, blast or dig your way through dirt, wood and stone.</li>
+        <li><b>Press into a wall in mid-air</b> to cling, then hold up to climb it.</li>
+        <li><b>Free the hostages</b> — each one you touch adds a life to the shared pool.</li>
+        <li><b>One hit kills</b> — yours, theirs, and your own explosives. Mind the blast radius.</li>
+        <li>Reach the <b>extraction chopper</b> at the far east end of the valley. Both bros must be aboard.</li>
+        <li>Gamepads work too: pad 1 → P1, pad 2 → P2. <b>Esc</b> pause · <b>R</b> restart · <b>M</b> mute.</li>
+      </ul>
+    </section>
+
+    <!-- pause -->
+    <section id="paused" class="hidden panel-screen">
+      <h2>PAUSED</h2>
+      <p class="dim">ESC to resume · R to restart the level · SHIFT+R to quit to title</p>
+    </section>
+
+    <!-- victory -->
+    <section id="win" class="hidden panel-screen">
+      <h2 class="good">EXTRACTION COMPLETE</h2>
+      <div id="win-stats" class="stats"></div>
+      <p class="dim">ENTER to return to the character select</p>
+    </section>
+
+    <!-- defeat -->
+    <section id="over" class="hidden panel-screen">
+      <h2 class="bad">MISSION FAILED</h2>
+      <div id="over-stats" class="stats"></div>
+      <p class="dim">ENTER to return to the character select</p>
+    </section>
+
+  </div>
+</div>
+
+<script src="js/core.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/terrain.js"></script>
+<script src="js/entities.js"></script>
+<script src="js/level.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
