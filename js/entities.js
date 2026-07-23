@@ -1003,6 +1003,88 @@ class Barrel extends Ent {
   }
 }
 
+// A run of fuel pipe. Rupture one segment and the detonation walks along the
+// line, segment by segment, until the whole pipeline has gone up.
+class Pipe extends Ent {
+  constructor(g, tx, ty, wTiles) {
+    super(tx * T, ty * T + 4, wTiles * T, 8);
+    this.g = g;
+    this.hittable = true;
+    this.hp = 1;
+    this.burning = 0;
+    this.spent = false;
+    this.line = null;
+    this.idx = 0;
+    this.kind = 'pipe';
+  }
+
+  hurt(dmg, kx, ky, g) { this.ignite(0.12); }
+
+  ignite(delay) {
+    if (this.spent || this.burning > 0) return;
+    this.burning = delay;
+    this.g.burst(this.cx, this.cy, 4, '#ffd166', 110, 0.25, 'spark');
+    sfx('dig');
+  }
+
+  update(dt) {
+    if (this.spent) return;
+    if (this.burning > 0) {
+      this.burning -= dt;
+      // jet of burning fuel while the rupture builds to a detonation
+      this.g.burst(this.cx + rand(-this.w / 2, this.w / 2), this.cy,
+        2, '#ffa53a', 120, 0.22, 'spark');
+      if (this.burning <= 0) this.blow();
+    }
+  }
+
+  blow() {
+    this.spent = true;
+    this.dead = true;
+    this.g.explode(this.cx, this.cy, 32, 26, null);
+    if (this.line) {
+      const before = this.line[this.idx - 1], after = this.line[this.idx + 1];
+      if (before) before.ignite(0.13);
+      if (after) after.ignite(0.13);
+    }
+  }
+
+  draw(ctx, camX, camY) {
+    const x = Math.round(this.x - camX), y = Math.round(this.y - camY);
+    const lit = this.burning > 0;
+    // Support trestle carried all the way down to the ground, otherwise an
+    // elevated run reads as pipe floating in mid-air.
+    const gy = groundBelow(this.g.terrain, this.cx, this.y + this.h);
+    const legH = clamp(gy - (this.y + this.h), 0, 240);
+    if (legH > 2) {
+      const sy = y + 8;
+      ctx.fillStyle = '#4b5058';
+      ctx.fillRect(x + 3, sy, 3, legH);
+      ctx.fillRect(x + this.w - 6, sy, 3, legH);
+      ctx.fillStyle = '#3c4149';                       // cross bracing
+      for (let by = sy + 8; by < sy + legH - 4; by += 12) {
+        ctx.fillRect(x + 5, by, this.w - 10, 2);
+      }
+      ctx.fillStyle = '#565e69';                       // footing
+      ctx.fillRect(x + 1, sy + legH - 2, 7, 3);
+      ctx.fillRect(x + this.w - 8, sy + legH - 2, 7, 3);
+    }
+    // pipe body
+    ctx.fillStyle = lit ? '#ffb347' : '#8d8474';
+    ctx.fillRect(x, y, this.w, 8);
+    ctx.fillStyle = lit ? '#fff0c0' : '#a49a88';
+    ctx.fillRect(x, y + 1, this.w, 2);
+    ctx.fillStyle = lit ? '#c9722a' : '#6d6558';
+    ctx.fillRect(x, y + 6, this.w, 2);
+    // flanges at each joint, plus a hazard band
+    ctx.fillStyle = '#5e6670';
+    ctx.fillRect(x, y - 1, 3, 10);
+    ctx.fillRect(x + this.w - 3, y - 1, 3, 10);
+    ctx.fillStyle = lit ? '#fff' : '#b8452c';
+    ctx.fillRect(x + (this.w >> 1) - 2, y + 2, 4, 4);
+  }
+}
+
 class Pow extends Ent {
   constructor(g, x, y) {
     super(x - 6, y - 16, 12, 16);

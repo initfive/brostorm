@@ -349,3 +349,67 @@ html, body {
   .slots { grid-template-columns: 1fr; }
   .briefing { columns: 1; }
 }
+
+/* ------------------------------------------------------- mission select --- */
+
+.mission-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px auto 0;
+  max-width: 720px;
+}
+
+.mission-label {
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  color: #6f7789;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+}
+
+#missions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  flex: 1;
+}
+
+.mission {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  align-items: center;
+  text-align: left;
+  padding: 7px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.3);
+  opacity: 0.45;
+  transition: opacity 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.mission.active {
+  opacity: 1;
+  border-color: rgba(255, 209, 102, 0.5);
+  background: rgba(255, 209, 102, 0.08);
+}
+
+.mkey {
+  grid-row: 1 / 3;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 10px;
+  font-weight: 700;
+  color: #dbe2ee;
+}
+
+.mission.active .mkey { background: var(--gold); color: #06080e; }
+.mission b { font-size: 10px; letter-spacing: 0.08em; }
+.mblurb { font-size: 9px; color: #8b93a6; line-height: 1.4; }

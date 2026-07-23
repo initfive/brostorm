@@ -2,7 +2,7 @@
 
 A two-player local co-op run-and-gun with fully destructible terrain, in the
 spirit of Broforce. Plain HTML5 + canvas — no build step, no dependencies, no
-install. Original characters, art and level.
+install. Original characters, art and levels.
 
 ## Play
 
@@ -30,7 +30,7 @@ player 2 on the right, so you can sit side by side.
 | Special | `G` *(or `H`)* | `/` *(or numpad `1`, right `Ctrl`)* |
 
 Global: `Esc` or `P` pause · `R` restart level · `Shift+R` quit to title ·
-`M` mute · `Enter` confirm.
+`M` mute · `Enter` confirm · `1` / `2` pick the mission on the title screen.
 
 **Gamepads work too** — pad 1 is P1, pad 2 is P2. Left stick / d-pad to move,
 `A` jump, `X`/triggers fire, `B`/bumpers special. Plug one in and it takes over
@@ -68,14 +68,14 @@ code, open the browser console and run
 If you add a key that the browser normally acts on (like `Tab` or `/`), also
 add its code to the `PREVENT` set just above `KEYMAPS` so the page swallows it.
 
-## The two bros
+## The bros
 
-| | CPL. RAZOR | SGT. RUBBLE |
-|---|---|---|
-| Primary | Assault rifle — fast, accurate, unlimited | Combat shotgun — 7-pellet spread, huge knockback |
-| Special | 4 × frag grenade (bounces, 1.25s fuse) | 3 × remote C4 |
-| Movement | Quicker, jumps higher | Slower and heavier |
-| Digging | Chews narrow tunnels | Blows wide holes through walls |
+| | Primary | Special | Notes |
+|---|---|---|---|
+| **CPL. RAZOR** | Assault rifle — fast, accurate, unlimited | 4 × frag grenade (bounces, 1.25s fuse) | Quickest on his feet; chews narrow tunnels |
+| **SGT. RUBBLE** | Combat shotgun — 7 pellets, huge knockback | 3 × remote C4 | Slow and heavy; blows wide holes through walls |
+| **THE OFFICE COMMANDO** | Burst stapler — three rounds per trigger pull | 4 × exploding briefcase | Fastest mover, rolled-up sleeves, no patience |
+| **GRANDMA GRENADIER** | Grenade launcher — lobs arcing shells | 2 × cluster shell (splits into 5 bomblets) | Slowest by far, and by far the largest craters |
 
 Both players may pick the same character.
 
@@ -100,18 +100,34 @@ mid-air to gain height.
   This is the main way to handle vertical terrain.
 - The camera is shared and will push a straggler along, so stay together.
 - Mission ends when both surviving bros reach the extraction chopper at the far
-  east end of the valley.
+  east end of the map.
 
-## Level
+## Missions
 
-One campaign map, `OPERATION IRON GULCH` — 252 × 40 tiles, about nine sections:
-landing zone, lava crossing, garrisoned bunker, buried tunnels, watchtower,
-lava lake, a two-storey fortress, an open last stand, and the extraction pad.
-50 entities placed by hand.
+Pick one on the title screen with `1` or `2`.
 
-The map is generated from a fixed seed in `js/level.js`, so it's identical every
-run but easy to edit — see the numbered section comments. `GROUND_POINTS` at the
-top is the terrain skyline as `[tileX, surfaceTileY]` control points.
+**1 · OPERATION IRON GULCH** — 252 × 40. Dusk over a green valley: landing zone,
+lava crossing, garrisoned bunker, buried tunnels, watchtower, lava lake, a
+two-storey fortress, an open last stand, extraction pad.
+
+**2 · OPERATION BLACKTAP** — 262 × 42. Sand and steel under a blistering
+sunset. Tank farms, catwalk stacks, a burning slick, a cracking tower, a pump
+field and a control block. The signature here is the **pipelines**: rupture one
+segment and the detonation walks the entire run, taking out everything standing
+near it. Tanks are steel shells packed with fuel cells — breach one and the
+contents chain.
+
+Both maps are generated from fixed seeds in `js/level.js`, so they are identical
+every run but easy to edit — see the numbered section comments. Each mission
+entry in the `LEVELS` registry carries its own size, skyline and theme.
+
+## Themes
+
+`js/themes.js` holds every colour decision for a mission: terrain palettes, the
+surface crust, sky gradient, parallax ridges, sun and liquid hazard. Adding an
+entry there and pointing a level at it re-skins the whole game without touching
+a line of rendering code — that is all the difference between the valley and the
+refinery, apart from what gets built.
 
 ## Tuning
 
@@ -125,6 +141,9 @@ top is the terrain skyline as `[tileX, surfaceTileY]` control points.
 | Starting lives | `this.lives = 5` in `Game.start()`, `js/game.js` |
 | Blast radii | `explode()` calls in `js/entities.js` |
 | Level layout & enemy placement | `js/level.js` |
+| Mission list | `LEVELS` at the bottom of `js/level.js` |
+| Palettes, skies, parallax | `js/themes.js` |
+| Character silhouettes & animation | `js/sprite.js` |
 
 ## Files
 
@@ -132,10 +151,12 @@ top is the terrain skyline as `[tileX, surfaceTileY]` control points.
 index.html          markup + overlay screens
 css/style.css       shell, HUD, title and results screens
 js/core.js          constants, math, keyboard + gamepad input
+js/themes.js        per-mission palettes, skies and parallax
+js/sprite.js        modular rectangle characters, animation, scenery props
 js/audio.js         procedural sound effects (Web Audio, no asset files)
 js/terrain.js       destructible tile grid and its renderer
 js/entities.js      physics, characters, weapons, enemies, projectiles, particles
-js/level.js         the campaign map
+js/level.js         the campaign maps and the mission registry
 js/game.js          game loop, camera, effects, UI wiring
 ```
 

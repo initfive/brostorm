@@ -15,6 +15,7 @@ class Game {
     this.bullets = [];
     this.projectiles = [];
     this.particles = [];
+    this.props = [];
     this.toasts = [];
 
     this.camX = 0; this.camY = 0;
@@ -41,6 +42,8 @@ class Game {
       { joined: false, locked: false, char: 1 }
     ];
     this.ctls = [makeControl(), makeControl()];
+    this.levelIndex = 0;
+    this.slowCd = 0;
   }
 
   // --- lifecycle ----------------------------------------------------------
@@ -50,6 +53,7 @@ class Game {
     this.bullets.length = 0;
     this.projectiles.length = 0;
     this.particles.length = 0;
+    this.props.length = 0;
     this.toasts.length = 0;
     this.players.length = 0;
     this.lives = 5;
@@ -60,6 +64,7 @@ class Game {
     this.chopperY = -120;
     this.shakeAmt = 0;
     this.stopT = 0;
+    this.slowCd = 0;
 
     buildLevel(this);
     this.checkpoint = { x: this.spawnX, y: this.spawnY };
@@ -101,7 +106,7 @@ class Game {
   }
 
   spawnDebris(x, y, type) {
-    const pal = TILE_COLOR[type] || TILE_COLOR[DIRT];
+    const pal = tilePalette(type);
     // Thin the shower out when a lot of tiles go at once, so a big blast stays
     // as cheap to draw as a rifle round chewing a single tile.
     const n = this.particles.length > 420 ? 2 : randInt(5, 9);
@@ -190,8 +195,9 @@ class Game {
     // chain reactions deserve to be watched in slow motion.
     this.chainN = (this.time - this.chainT < 0.4) ? this.chainN + 1 : 1;
     this.chainT = this.time;
-    if (this.chainN >= 3 && this.slowMo <= 0) {
+    if (this.chainN >= 3 && this.slowMo <= 0 && this.slowCd <= 0) {
       this.slowMo = 0.55;
+      this.slowCd = 4;
       this.chainN = 0;
       this.toast('CHAIN REACTION', '#ffb347');
     }
@@ -297,6 +303,7 @@ class Game {
     }
 
     this.time += dt;
+    this.slowCd -= dt;
     this.terrain.time = this.time;
 
     for (const p of this.players) if (p.joined) p.update(dt);
@@ -387,12 +394,18 @@ class Game {
     this.drawGoal(ctx, camX, camY);
     this.terrain.draw(ctx, camX, camY);
 
+    for (const pr of this.props) {
+      if (pr.x - camX < -80 || pr.x - camX > VIEW_W + 80) continue;
+      drawProp(ctx, pr, camX, camY, this.time);
+    }
+
     for (const e of this.enemies) if (!e.dead) e.draw(ctx, camX, camY);
     for (const pr of this.projectiles) if (!pr.dead) pr.draw(ctx, camX, camY);
     for (const p of this.players) if (p.joined) p.draw(ctx, camX, camY);
     for (const b of this.bullets) if (!b.dead) b.draw(ctx, camX, camY);
     for (const p of this.particles) p.draw(ctx, camX, camY);
 
+    this.drawHaze(ctx);
     this.drawOffscreenMarkers(ctx, camX, camY);
 
     if (this.flash > 0.02) {
@@ -403,36 +416,26 @@ class Game {
   }
 
   drawSky(ctx, camX, camY) {
-    if (!this._sky) {
+    if (!this._sky || this._skyTheme !== THEME.id) {
       const g = ctx.createLinearGradient(0, 0, 0, VIEW_H);
-      g.addColorStop(0, '#2a3d63');
-      g.addColorStop(0.45, '#6a5f7a');
-      g.addColorStop(0.75, '#c07a5a');
-      g.addColorStop(1, '#e0a25e');
+      for (const st of THEME.sky) g.addColorStop(st[0], st[1]);
       this._sky = g;
+      this._skyTheme = THEME.id;
     }
     ctx.fillStyle = this._sky;
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
     // low sun - one soft radial falloff, so it reads as haze rather than as a
     // flat disc pasted over the sky
-    const sunX = 380 - camX * 0.04, sunY = 92 - camY * 0.05;
-    const sun = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, 58);
-    sun.addColorStop(0, 'rgba(255,233,180,0.90)');
-    sun.addColorStop(0.26, 'rgba(255,209,133,0.62)');
-    sun.addColorStop(0.34, 'rgba(255,180,110,0.22)');
-    sun.addColorStop(0.62, 'rgba(255,150,90,0.07)');
-    sun.addColorStop(1, 'rgba(255,140,80,0)');
+    const S = THEME.sun;
+    const sunX = S.x - camX * S.px, sunY = S.y - camY * S.py;
+    const sun = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, S.r);
+    for (const st of S.stops) sun.addColorStop(st[0], st[1]);
     ctx.fillStyle = sun;
-    ctx.fillRect(sunX - 60, sunY - 60, 120, 120);
+    ctx.fillRect(sunX - S.r - 2, sunY - S.r - 2, S.r * 2 + 4, S.r * 2 + 4);
 
-    // three parallax ridges
-    const ridges = [
-      { p: 0.10, base: 150, amp: 22, col: '#4b4a66' },
-      { p: 0.22, base: 176, amp: 18, col: '#3d3d55' },
-      { p: 0.40, base: 205, amp: 14, col: '#2e3044' }
-    ];
-    for (const r of ridges) {
+    // parallax ridges
+    for (const r of THEME.ridges) {
       ctx.fillStyle = r.col;
       ctx.beginPath();
       ctx.moveTo(0, VIEW_H);
@@ -495,6 +498,22 @@ class Game {
     }
   }
 
+  // Heat shimmer for the desert theme. Bands of warm haze that drift and
+  // wobble - cheaper and artefact-free compared with resampling the canvas.
+  drawHaze(ctx) {
+    if (!THEME.haze) return;
+    const top = VIEW_H * 0.42;
+    for (let i = 0; i < 9; i++) {
+      const f = i / 9;
+      const y = top + f * (VIEW_H - top) + Math.sin(this.time * 1.7 + i * 1.9) * 3;
+      const a = (0.05 + 0.05 * Math.sin(this.time * 2.3 + i)) * (0.4 + f);
+      ctx.fillStyle = 'rgba(255,186,120,' + a.toFixed(3) + ')';
+      ctx.fillRect(0, Math.round(y), VIEW_W, 2 + (i & 1));
+    }
+    ctx.fillStyle = 'rgba(255,150,80,0.05)';
+    ctx.fillRect(0, Math.round(top), VIEW_W, VIEW_H - top);
+  }
+
   drawVignette(ctx) {
     if (!this._vig) {
       const g = ctx.createRadialGradient(VIEW_W / 2, VIEW_H / 2, VIEW_H * 0.35,
@@ -533,10 +552,12 @@ const UI = {
       overStats: id('over-stats'),
       panels: [id('p1-panel'), id('p2-panel')],
       cards: [id('p1-cards'), id('p2-cards')],
-      startHint: id('start-hint')
+      startHint: id('start-hint'),
+      missions: id('missions')
     };
     this.buildCards(0);
     this.buildCards(1);
+    this.buildMissions();
     this.setScreen('title');
   },
 
@@ -567,6 +588,35 @@ const UI = {
       card.append(cv, name, tag, blurb);
       wrap.appendChild(card);
     });
+  },
+
+  buildMissions() {
+    const wrap = this.el.missions;
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    LEVELS.forEach((lv, i) => {
+      const card = document.createElement('div');
+      card.className = 'mission';
+      const key = document.createElement('span');
+      key.className = 'mkey';
+      key.textContent = String(i + 1);
+      const name = document.createElement('b');
+      name.textContent = lv.name;
+      const blurb = document.createElement('span');
+      blurb.className = 'mblurb';
+      blurb.textContent = lv.blurb;
+      card.append(key, name, blurb);
+      wrap.appendChild(card);
+    });
+  },
+
+  renderMissions(game) {
+    const wrap = this.el.missions;
+    if (!wrap) return;
+    const cards = wrap.children;
+    for (let i = 0; i < cards.length; i++) {
+      cards[i].classList.toggle('active', i === game.levelIndex);
+    }
   },
 
   setScreen(name) {
@@ -600,6 +650,14 @@ const UI = {
   updateTitle(game) {
     let anyLocked = false, allLocked = true, joinedCount = 0;
 
+    for (let i = 0; i < LEVELS.length && i < 9; i++) {
+      if (keyHit.has('Digit' + (i + 1)) || keyHit.has('Numpad' + (i + 1))) {
+        game.levelIndex = i;
+        sfx('select');
+      }
+    }
+    this.renderMissions(game);
+
     for (let i = 0; i < 2; i++) {
       const c = game.ctls[i], s = game.sel[i];
       if (!s.joined) {
@@ -621,7 +679,7 @@ const UI = {
 
     const ready = joinedCount > 0 && allLocked && anyLocked;
     this.el.startHint.textContent = ready
-      ? 'PRESS ENTER OR FIRE TO DEPLOY'
+      ? 'PRESS ENTER OR FIRE TO DEPLOY  ·  ' + LEVELS[game.levelIndex].name
       : 'PICK YOUR BRO  ·  LEFT/RIGHT TO BROWSE  ·  FIRE TO LOCK IN';
     this.el.startHint.classList.toggle('ready', ready);
 

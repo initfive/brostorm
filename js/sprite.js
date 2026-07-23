@@ -296,6 +296,86 @@ function drawChar(ctx, look, cx, feetY, o) {
   }
 }
 
+// --- scenery props --------------------------------------------------------
+// Purely decorative structures drawn between the terrain and the entities.
+
+function drawProp(ctx, p, camX, camY, time) {
+  const x = Math.round(p.x - camX), y = Math.round(p.y - camY);
+
+  if (p.type === 'pump') {
+    // nodding-donkey pump jack
+    const nod = Math.sin(time * 1.4 + p.phase);
+    ctx.fillStyle = '#463f36';
+    ctx.fillRect(x - 20, y - 4, 44, 5);                 // skid
+    ctx.fillStyle = '#5b5347';
+    ctx.fillRect(x - 2, y - 26, 5, 23);                 // A-frame post
+    ctx.fillRect(x - 8, y - 6, 3, 4);
+    ctx.fillRect(x + 6, y - 6, 3, 4);
+    ctx.save();
+    ctx.translate(x, y - 27);
+    ctx.rotate(nod * 0.22);
+    ctx.fillStyle = '#6d6355';                          // walking beam
+    ctx.fillRect(-19, -2, 38, 4);
+    ctx.fillStyle = '#3f3931';                          // horse head
+    ctx.fillRect(15, -2, 7, 9);
+    ctx.fillStyle = '#5b5347';                          // counterweight
+    ctx.fillRect(-22, -4, 7, 9);
+    ctx.restore();
+    ctx.fillStyle = '#3a342c';
+    ctx.fillRect(x + 16 + Math.round(nod * 3), y - 24 + Math.round(nod * 4), 2, 20);
+    return;
+  }
+
+  if (p.type === 'tank') {
+    // banding and a highlight over a metal tank shell, to read as a cylinder
+    const w = p.w, h = p.h;
+    ctx.fillStyle = 'rgba(255,255,255,0.10)';
+    ctx.fillRect(x + 3, y + 2, 5, h - 4);
+    ctx.fillStyle = 'rgba(0,0,0,0.20)';
+    ctx.fillRect(x + w - 9, y + 2, 6, h - 4);
+    ctx.fillStyle = '#565e69';
+    for (let i = 1; i < 3; i++) ctx.fillRect(x, y + (h * i / 3) | 0, w, 2);
+    ctx.fillStyle = '#b8452c';                          // hazard stripe
+    ctx.fillRect(x + 4, y + 5, w - 8, 3);
+    ctx.fillStyle = '#3f4650';                          // ladder
+    for (let ly = y + 4; ly < y + h - 3; ly += 5) ctx.fillRect(x + w - 6, ly, 5, 2);
+    return;
+  }
+
+  if (p.type === 'tower') {
+    // lattice mast with a blinking hazard light
+    ctx.strokeStyle = '#4e5560';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x - 7, y); ctx.lineTo(x - 2, y - p.h);
+    ctx.moveTo(x + 7, y); ctx.lineTo(x + 2, y - p.h);
+    ctx.stroke();
+    ctx.lineWidth = 1;
+    for (let i = 1; i * 9 < p.h; i++) {
+      const yy = y - i * 9, k = 6 - (i * 5) / (p.h / 9);
+      ctx.beginPath();
+      ctx.moveTo(x - k, yy); ctx.lineTo(x + k, yy);
+      ctx.stroke();
+    }
+    ctx.fillStyle = Math.floor(time * 2) % 2 ? '#ff4a3a' : '#5a1a14';
+    ctx.fillRect(x - 1, y - p.h - 3, 3, 3);
+    return;
+  }
+
+  if (p.type === 'flare') {
+    // flare stack burning off gas
+    ctx.fillStyle = '#5b5347';
+    ctx.fillRect(x - 3, y - p.h, 7, p.h);
+    ctx.fillStyle = '#3f3931';
+    ctx.fillRect(x - 5, y - p.h - 2, 11, 3);
+    const f = 6 + Math.sin(time * 9 + p.phase) * 3;
+    ctx.fillStyle = 'rgba(255,150,50,0.85)';
+    ctx.fillRect(x - 3, y - p.h - 3 - f, 7, f);
+    ctx.fillStyle = 'rgba(255,226,140,0.9)';
+    ctx.fillRect(x - 1, y - p.h - 2 - f * 0.7, 3, f * 0.7);
+  }
+}
+
 // Back-compat shim: older call sites (and the character-select cards) still
 // use the positional drawBro signature.
 function drawBro(ctx, look, x, y, facing, pose, t, aimX, aimY, flash, playerIndex) {

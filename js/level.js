@@ -6,17 +6,20 @@
 // set pieces, section by section.
 // ---------------------------------------------------------------------------
 
-const LEVEL_W = 252;
-const LEVEL_H = 40;
-const LEVEL_NAME = 'OPERATION IRON GULCH';
+// Set by buildLevel() for whichever mission is loaded.
+let LEVEL_W = 252;
+let LEVEL_H = 40;
+let LEVEL_NAME = 'OPERATION IRON GULCH';
 
 // Ground surface control points: [tileX, surfaceTileY]. Lower y = higher ground.
-const GROUND_POINTS = [
+const GULCH_GROUND = [
   [0, 26], [14, 26], [22, 24], [30, 24], [34, 27], [44, 27], [48, 24],
   [62, 22], [72, 22], [78, 26], [90, 28], [98, 30], [110, 30], [116, 26],
   [126, 24], [136, 24], [142, 28], [156, 28], [162, 25], [180, 25],
   [188, 28], [200, 29], [208, 26], [220, 24], [232, 24], [252, 24]
 ];
+
+let GROUND_POINTS = GULCH_GROUND;
 
 function groundAt(tx) {
   for (let i = 0; i < GROUND_POINTS.length - 1; i++) {
@@ -30,7 +33,7 @@ function groundAt(tx) {
   return GROUND_POINTS[GROUND_POINTS.length - 1][1];
 }
 
-function buildLevel(game) {
+function buildGulch(game) {
   const ter = new Terrain(LEVEL_W, LEVEL_H);
   const rng = makeRng(0x5150);
   game.terrain = ter;
@@ -236,4 +239,249 @@ function buildLevel(game) {
   game.goal = { x: 232 * T, y: (padY - 3) * T, w: 12 * T, h: 5 * T };
   game.totalEnemies = game.enemies.filter(e => e.hittable && e.kind !== 'barrel').length;
   return ter;
+}
+
+// ---------------------------------------------------------------------------
+// "OPERATION BLACKTAP" - desert fuel refinery
+//
+// Sand and steel under a blistering sunset. The signature here is the
+// pipelines: rupture one segment and the detonation walks the whole run,
+// taking out anything standing near it.
+// ---------------------------------------------------------------------------
+
+const REFINERY_GROUND = [
+  [0, 28], [16, 28], [26, 26], [40, 26], [46, 29], [58, 29], [64, 27],
+  [80, 27], [88, 30], [104, 30], [112, 27], [130, 27], [138, 31], [152, 31],
+  [160, 28], [178, 28], [186, 30], [200, 30], [208, 27], [228, 27],
+  [236, 26], [262, 26]
+];
+
+function buildRefinery(game) {
+  const ter = new Terrain(LEVEL_W, LEVEL_H);
+  const rng = makeRng(0xB1A7);
+  game.terrain = ter;
+
+  // --- baked desert ground -------------------------------------------------
+  for (let x = 0; x < LEVEL_W; x++) {
+    const g = groundAt(x) + (x > 20 && rng() < 0.10 ? 1 : 0);
+    for (let y = g; y < LEVEL_H; y++) {
+      let t = DIRT;
+      if (y > g + 4 + Math.floor(rng() * 3)) t = STONE;
+      if (y >= LEVEL_H - 2) t = BEDROCK;
+      ter.set(x, y, t);
+    }
+  }
+  for (let y = 0; y < LEVEL_H; y++) { ter.set(0, y, BEDROCK); ter.set(1, y, BEDROCK); }
+  for (let y = 0; y < LEVEL_H; y++) { ter.set(LEVEL_W - 1, y, BEDROCK); ter.set(LEVEL_W - 2, y, BEDROCK); }
+
+  for (let i = 0; i < 70; i++) {
+    const x = Math.floor(rng() * LEVEL_W), y = groundAt(x) + 3 + Math.floor(rng() * 9);
+    const r = 1 + Math.floor(rng() * 2);
+    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+      if (ter.get(x + dx, y + dy) === DIRT) ter.set(x + dx, y + dy, STONE);
+    }
+  }
+  ter.computeBackground();
+
+  function surf(tx) {
+    for (let y = 0; y < LEVEL_H; y++) if (ter.solid(tx, y)) return y * T;
+    return (LEVEL_H - 2) * T;
+  }
+
+  // --- refinery construction kit -------------------------------------------
+  const spawn = (E, tx, worldY) => game.enemies.push(new E(game, tx * T + T / 2, worldY));
+  const powAt = (tx, worldY) => game.enemies.push(new Pow(game, tx * T + T / 2, worldY));
+  const barrelAt = (tx, worldY) => game.enemies.push(new Barrel(game, tx * T + T / 2, worldY));
+
+  function catwalk(tx, ty, w) {
+    for (let i = 0; i < w; i++) ter.set(tx + i, ty, METAL);
+  }
+
+  // A run of pipe. Segments are linked so a rupture propagates along the line.
+  function pipeline(tx, ty, count, segTiles) {
+    const line = [];
+    for (let i = 0; i < count; i++) {
+      const pipe = new Pipe(game, tx + i * segTiles, ty, segTiles);
+      pipe.line = line;
+      pipe.idx = i;
+      line.push(pipe);
+      game.enemies.push(pipe);
+    }
+    return line;
+  }
+
+  // Steel shell packed with fuel cells: breach it and the contents chain.
+  function tank(tx, ty, w, h) {
+    ter.markInterior(tx, ty, w, h);
+    ter.fillRect(tx, ty, w, h, EMPTY);
+    ter.outlineRect(tx, ty, w, h, METAL);
+    game.props.push({ type: 'tank', x: tx * T, y: ty * T, w: w * T, h: h * T });
+    for (let i = 2; i < w - 2; i += 2) barrelAt(tx + i, (ty + h - 1) * T);
+    barrelAt(tx - 1, surf(tx - 1));                    // exposed valve outside
+  }
+
+  function pump(tx) { game.props.push({ type: 'pump', x: tx * T, y: surf(tx), phase: rng() * 6.3 }); }
+  function flare(tx, h) { game.props.push({ type: 'flare', x: tx * T, y: surf(tx), h: h, phase: rng() * 6.3 }); }
+  function mast(tx, h) { game.props.push({ type: 'tower', x: tx * T, y: surf(tx), h: h }); }
+
+  // -------------------------------------------------------------------------
+  // SECTION 1 (x 4-24) - perimeter
+  // -------------------------------------------------------------------------
+  game.spawnX = 8 * T;
+  game.spawnY = surf(8);
+  pump(16);
+  mast(22, 40);
+  spawn(Grunt, 19, surf(19));
+  spawn(Grunt, 24, surf(24));
+  barrelAt(13, surf(13));
+
+  // -------------------------------------------------------------------------
+  // SECTION 2 (x 28-48) - the first pipeline, and a lesson in blast radius
+  // -------------------------------------------------------------------------
+  pipeline(28, groundAt(30) - 4, 9, 2);
+  spawn(Grunt, 33, surf(33));
+  spawn(Rusher, 39, surf(39));
+  spawn(Grunt, 44, surf(44));
+  barrelAt(46, surf(46));
+  flare(50, 46);
+
+  // -------------------------------------------------------------------------
+  // SECTION 3 (x 54-76) - tank farm
+  // -------------------------------------------------------------------------
+  tank(56, groundAt(60) - 11, 11, 11);
+  tank(70, groundAt(74) - 9, 9, 9);
+  spawn(Turret, 61, (groundAt(60) - 11) * T);
+  spawn(Grunt, 67, surf(67));
+  spawn(Rusher, 80, surf(80));
+  powAt(74, (groundAt(74) - 1) * T);
+
+  // -------------------------------------------------------------------------
+  // SECTION 4 (x 84-104) - catwalk stack
+  // -------------------------------------------------------------------------
+  catwalk(84, groundAt(88) - 6, 12);
+  catwalk(90, groundAt(94) - 12, 12);
+  catwalk(84, groundAt(88) - 18, 9);
+  spawn(Grunt, 88, (groundAt(88) - 6) * T);
+  spawn(Grunt, 96, (groundAt(94) - 12) * T);
+  spawn(Turret, 90, (groundAt(88) - 18) * T);
+  powAt(86, (groundAt(88) - 18) * T);
+  barrelAt(99, (groundAt(94) - 12) * T);
+  pump(103);
+
+  // -------------------------------------------------------------------------
+  // SECTION 5 (x 108-130) - burning slick, crossed on a pipe bridge
+  // -------------------------------------------------------------------------
+  for (let x = 110; x < 128; x++) {
+    const g = groundAt(x);
+    for (let y = g; y < g + 11; y++) ter.set(x, y, EMPTY);
+    for (let y = g + 8; y < g + 11; y++) ter.set(x, y, LAVA);
+  }
+  pipeline(110, groundAt(114) - 3, 9, 2);
+  catwalk(118, groundAt(118) - 9, 6);
+  spawn(Grunt, 120, (groundAt(118) - 9) * T);
+  spawn(Grunt, 130, surf(130));
+
+  // -------------------------------------------------------------------------
+  // SECTION 6 (x 134-158) - cracking tower
+  // -------------------------------------------------------------------------
+  const twX = 138, twBase = groundAt(twX);
+  ter.markInterior(twX, twBase - 22, 12, 22);
+  ter.fillRect(twX, twBase - 22, 12, 22, EMPTY);
+  ter.outlineRect(twX, twBase - 22, 12, 22, METAL);
+  for (let f = 0; f < 4; f++) {
+    const fy = twBase - 5 - f * 5;
+    for (let i = twX + 1; i < twX + 11; i++) ter.set(i, fy, METAL);
+    ter.set(twX + (f % 2 ? 2 : 9), fy, EMPTY);
+    ter.set(twX + (f % 2 ? 3 : 8), fy, EMPTY);
+  }
+  ter.fillRect(twX, twBase - 1, 3, 2, EMPTY);
+  spawn(Turret, twX + 6, (twBase - 22) * T);
+  spawn(Grunt, twX + 4, (twBase - 6) * T);
+  spawn(Grunt, twX + 8, (twBase - 11) * T);
+  spawn(Rusher, twX + 5, (twBase - 16) * T);
+  powAt(twX + 9, (twBase - 21) * T);
+  barrelAt(twX + 10, (twBase - 1) * T);
+  flare(156, 54);
+
+  // -------------------------------------------------------------------------
+  // SECTION 7 (x 162-192) - pump field and the long line
+  // -------------------------------------------------------------------------
+  pump(166); pump(176); pump(186);
+  pipeline(164, groundAt(170) - 7, 14, 2);
+  spawn(Grunt, 169, surf(169));
+  spawn(Rusher, 174, surf(174));
+  spawn(Rusher, 181, surf(181));
+  spawn(Grunt, 188, surf(188));
+  spawn(Turret, 192, surf(192));
+  barrelAt(178, surf(178));
+  barrelAt(179, surf(179));
+
+  // -------------------------------------------------------------------------
+  // SECTION 8 (x 196-220) - control block
+  // -------------------------------------------------------------------------
+  const cx0 = 198, cTop = groundAt(cx0 + 8) - 12;
+  ter.markInterior(cx0, cTop, 18, 13);
+  ter.fillRect(cx0, cTop, 18, 13, EMPTY);
+  ter.outlineRect(cx0, cTop, 18, 13, METAL);
+  ter.fillRect(cx0, cTop + 9, 1, 4, EMPTY);
+  ter.fillRect(cx0 + 17, cTop + 9, 1, 4, EMPTY);
+  ter.fillRect(cx0 + 8, cTop, 3, 1, EMPTY);
+  spawn(Turret, cx0 + 3, cTop * T);
+  spawn(Grunt, cx0 + 5, (cTop + 12) * T);
+  spawn(Grunt, cx0 + 13, (cTop + 12) * T);
+  spawn(Rusher, cx0 + 9, (cTop + 12) * T);
+  powAt(cx0 + 7, (cTop + 12) * T);
+  powAt(cx0 + 15, (cTop + 12) * T);
+  barrelAt(cx0 + 11, (cTop + 12) * T);
+
+  // -------------------------------------------------------------------------
+  // SECTION 9 (x 224-238) - last stand at the loading rack
+  // -------------------------------------------------------------------------
+  tank(224, groundAt(228) - 9, 9, 9);
+  pipeline(234, groundAt(236) - 5, 6, 2);
+  spawn(Grunt, 232, surf(232));
+  spawn(Rusher, 238, surf(238));
+  spawn(Grunt, 241, surf(241));
+  mast(244, 34);
+
+  // -------------------------------------------------------------------------
+  // SECTION 10 (x 246-258) - extraction pad
+  // -------------------------------------------------------------------------
+  const padY = groundAt(250) - 4;
+  ter.fillRect(244, padY, 14, 2, BEDROCK);
+  for (let x = 244; x < 258; x++)
+    for (let y = padY + 2; y < LEVEL_H; y++)
+      if (ter.get(x, y) !== BEDROCK) ter.set(x, y, STONE);
+
+  game.goal = { x: 248 * T, y: (padY - 3) * T, w: 9 * T, h: 5 * T };
+  game.totalEnemies = game.enemies.filter(
+    e => e.hittable && e.kind !== 'barrel' && e.kind !== 'pipe').length;
+  return ter;
+}
+
+// ---------------------------------------------------------------------------
+// mission registry
+// ---------------------------------------------------------------------------
+
+const LEVELS = [
+  {
+    id: 'gulch', name: 'OPERATION IRON GULCH', theme: 'gulch',
+    w: 252, h: 40, ground: GULCH_GROUND, build: buildGulch,
+    blurb: 'Dusk over a green valley. Bunkers, a watchtower and two lava fields.'
+  },
+  {
+    id: 'refinery', name: 'OPERATION BLACKTAP', theme: 'refinery',
+    w: 262, h: 42, ground: REFINERY_GROUND, build: buildRefinery,
+    blurb: 'Sand and steel. Rupture a pipeline and the blast walks the whole run.'
+  }
+];
+
+function buildLevel(game) {
+  const lv = LEVELS[clamp(game.levelIndex | 0, 0, LEVELS.length - 1)];
+  LEVEL_W = lv.w;
+  LEVEL_H = lv.h;
+  LEVEL_NAME = lv.name;
+  GROUND_POINTS = lv.ground;
+  setTheme(lv.theme);
+  return lv.build(game);
 }

@@ -2,17 +2,15 @@
 // BROSTORM - destructible tile terrain
 // ---------------------------------------------------------------------------
 
-const EMPTY = 0, DIRT = 1, STONE = 2, WOOD = 3, BEDROCK = 4, LAVA = 5;
+const EMPTY = 0, DIRT = 1, STONE = 2, WOOD = 3, BEDROCK = 4, LAVA = 5, METAL = 6;
 
-const TILE_HP = [0, 3, 10, 2, 255, 0];
-const TILE_SOLID = [false, true, true, true, true, false];
+const TILE_HP = [0, 3, 10, 2, 255, 0, 14];
+const TILE_SOLID = [false, true, true, true, true, false, true];
 
-const TILE_COLOR = {
-  [DIRT]: ['#6d4a2c', '#7a5433', '#5e3f26'],
-  [STONE]: ['#565d69', '#616975', '#4b515c'],
-  [WOOD]: ['#8a5a2f', '#96653a', '#7a4d27'],
-  [BEDROCK]: ['#2b2f38', '#31353f', '#252932']
-};
+// Palettes live in the active theme; this resolves one for a tile type.
+function tilePalette(type) {
+  return THEME.tile[type] || THEME.tile[1];
+}
 
 class Terrain {
   constructor(w, h) {
@@ -127,7 +125,7 @@ class Terrain {
         if (type === EMPTY) {
           if (!this.bg[i]) continue;
           const n = hash2(tx, ty);
-          ctx.fillStyle = n < 0.5 ? '#1c1e26' : '#20222b';
+          ctx.fillStyle = THEME.bgDark[n < 0.5 ? 0 : 1];
           ctx.fillRect(sx, sy, T, T);
           // faint lip under a solid ceiling, so overhangs have some depth
           if (TILE_SOLID[this.get(tx, ty - 1)]) {
@@ -139,16 +137,16 @@ class Terrain {
 
         if (type === LAVA) {
           const wob = Math.sin(this.time * 3 + tx * 0.7) * 0.5 + 0.5;
-          ctx.fillStyle = wob > 0.6 ? '#ff9a2e' : '#e8511a';
+          ctx.fillStyle = wob > 0.6 ? THEME.liquid.hot : THEME.liquid.cool;
           ctx.fillRect(sx, sy, T, T);
           if (!TILE_SOLID[this.get(tx, ty - 1)] && this.get(tx, ty - 1) !== LAVA) {
-            ctx.fillStyle = '#ffd36b';
+            ctx.fillStyle = THEME.liquid.rim;
             ctx.fillRect(sx, sy + Math.round(wob), T, 2);
           }
           continue;
         }
 
-        const pal = TILE_COLOR[type];
+        const pal = tilePalette(type);
         const n = hash2(tx, ty);
         ctx.fillStyle = pal[n < 0.45 ? 0 : n < 0.8 ? 1 : 2];
         ctx.fillRect(sx, sy, T, T);
@@ -175,25 +173,28 @@ class Terrain {
         // Lit rim wherever a tile is exposed to open air above.
         if (openUp) {
           if (type === DIRT) {
-            ctx.fillStyle = '#4f8f3c';
-            ctx.fillRect(sx, sy, T, 4);
-            ctx.fillStyle = '#63a94a';
+            ctx.fillStyle = THEME.crustMid;
+            ctx.fillRect(sx, sy, T, THEME.crustH + 1);
+            ctx.fillStyle = THEME.crustTop;
             ctx.fillRect(sx, sy, T, 2);
-            // grass overhanging the edge, and the odd root dangling below
-            ctx.fillStyle = '#4f8f3c';
+            // crust overhanging the edge, and the odd root dangling below
+            ctx.fillStyle = THEME.crustMid;
             if (openL) ctx.fillRect(sx - 1, sy + 1, 1, 3);
             if (openR) ctx.fillRect(sx + T, sy + 1, 1, 3);
-            const blade = Math.floor(n * 4);
-            for (let b = 0; b <= blade; b++) {
-              const bx = sx + ((Math.floor(n * 977) + b * 5) % (T - 2));
-              ctx.fillRect(bx, sy - 1, 1, 2);
+            if (THEME.blades) {
+              const blade = Math.floor(n * 4);
+              for (let b = 0; b <= blade; b++) {
+                const bx = sx + ((Math.floor(n * 977) + b * 5) % (T - 2));
+                ctx.fillRect(bx, sy - 1, 1, 2);
+              }
             }
-            if (n > 0.72) {
+            if (THEME.roots && n > 0.72) {
               ctx.fillStyle = '#4a3320';
               ctx.fillRect(sx + Math.floor(n * 11) % (T - 2), sy + 4, 1, 3);
             }
           } else {
-            ctx.fillStyle = type === WOOD ? '#a8763f' : '#727b88';
+            ctx.fillStyle = type === WOOD ? '#a8763f'
+              : type === METAL ? '#98a1ad' : '#727b88';
             ctx.fillRect(sx, sy, T, 2);
           }
         }
@@ -203,6 +204,13 @@ class Terrain {
           if (openL) { ctx.fillStyle = 'rgba(255,255,255,0.07)'; ctx.fillRect(sx, sy, 2, T); }
           if (openR) { ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fillRect(sx + T - 2, sy, 2, T); }
           if (openDn) { ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fillRect(sx, sy + T - 2, T, 2); }
+        } else if (type === METAL) {
+          ctx.fillStyle = 'rgba(0,0,0,0.26)';
+          ctx.fillRect(sx, sy + T - 2, T, 2);
+          ctx.fillRect(sx + T - 1, sy, 1, T);
+          ctx.fillStyle = 'rgba(255,255,255,0.16)';   // rivets
+          ctx.fillRect(sx + 2, sy + 2, 2, 2);
+          ctx.fillRect(sx + T - 5, sy + 2, 2, 2);
         } else {
           // planks
           ctx.fillStyle = 'rgba(0,0,0,0.20)';
@@ -215,7 +223,7 @@ class Terrain {
           ctx.fillStyle = 'rgba(0,0,0,0.22)';
           ctx.fillRect(sx + Math.floor(n * 9) % 11, sy + Math.floor(n * 53) % 11, 3, 3);
         } else if (n > 0.78 && type === DIRT) {
-          ctx.fillStyle = '#8b8175';
+          ctx.fillStyle = THEME.grit;
           ctx.fillRect(sx + Math.floor(n * 71) % 12, sy + Math.floor(n * 31) % 12, 2, 2);
         }
 
