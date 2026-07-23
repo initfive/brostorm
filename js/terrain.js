@@ -2,10 +2,10 @@
 // BROSTORM - destructible tile terrain
 // ---------------------------------------------------------------------------
 
-const EMPTY = 0, DIRT = 1, STONE = 2, WOOD = 3, BEDROCK = 4, LAVA = 5, METAL = 6;
+const EMPTY = 0, DIRT = 1, STONE = 2, WOOD = 3, BEDROCK = 4, LAVA = 5, METAL = 6, ICE = 7;
 
-const TILE_HP = [0, 3, 10, 2, 255, 0, 14];
-const TILE_SOLID = [false, true, true, true, true, false, true];
+const TILE_HP = [0, 3, 10, 2, 255, 0, 14, 5];
+const TILE_SOLID = [false, true, true, true, true, false, true, true];
 
 // Palettes live in the active theme; this resolves one for a tile type.
 function tilePalette(type) {
@@ -194,7 +194,7 @@ class Terrain {
             }
           } else {
             ctx.fillStyle = type === WOOD ? '#a8763f'
-              : type === METAL ? '#98a1ad' : '#727b88';
+              : type === METAL ? '#98a1ad' : type === ICE ? '#dff1ff' : '#727b88';
             ctx.fillRect(sx, sy, T, 2);
           }
         }
@@ -204,6 +204,14 @@ class Terrain {
           if (openL) { ctx.fillStyle = 'rgba(255,255,255,0.07)'; ctx.fillRect(sx, sy, 2, T); }
           if (openR) { ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fillRect(sx + T - 2, sy, 2, T); }
           if (openDn) { ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fillRect(sx, sy + T - 2, T, 2); }
+        } else if (type === ICE) {
+          ctx.fillStyle = 'rgba(255,255,255,0.30)';
+          ctx.fillRect(sx, sy, T, 2);
+          ctx.fillStyle = 'rgba(255,255,255,0.14)';
+          ctx.fillRect(sx + 2, sy + 3, 2, T - 6);
+          ctx.fillRect(sx + 8, sy + 6, 2, T - 9);
+          ctx.fillStyle = 'rgba(30,60,90,0.20)';
+          ctx.fillRect(sx, sy + T - 2, T, 2);
         } else if (type === METAL) {
           ctx.fillStyle = 'rgba(0,0,0,0.26)';
           ctx.fillRect(sx, sy + T - 2, T, 2);

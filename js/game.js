@@ -239,10 +239,12 @@ class Game {
 
   // --- queries ------------------------------------------------------------
 
+  // Enemies use this for every sighting, so a hidden bro is simply not there
+  // as far as the opposition is concerned.
   nearestPlayer(x, y, maxDist) {
     let best = null, bd = maxDist * maxDist;
     for (const p of this.players) {
-      if (!p.alive) continue;
+      if (!p.alive || p.hidden) continue;
       const d = dist2(x, y, p.cx, p.cy);
       if (d < bd) { bd = d; best = p; }
     }
@@ -354,6 +356,7 @@ class Game {
     this.bullets = this.bullets.filter(b => !b.dead);
     this.projectiles = this.projectiles.filter(p => !p.dead);
 
+    this.updateWeather(dt);
     this.updateEffectsOnly(dt);
     this.updateCamera(dt);
 
@@ -463,6 +466,33 @@ class Game {
     ctx.fillStyle = this._sky;
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
+    // starfield, for anywhere without an atmosphere to hide it
+    if (THEME.stars) {
+      for (let i = 0; i < 70; i++) {
+        const sx = (i * 137.51 - camX * 0.03) % VIEW_W;
+        const sy = (i * 71.13) % (VIEW_H * 0.7) - camY * 0.03;
+        if (sy < 0 || sy > VIEW_H) continue;
+        const tw = 0.5 + 0.5 * Math.sin(this.time * 2 + i);
+        ctx.fillStyle = 'rgba(255,255,255,' + (0.25 + tw * 0.45).toFixed(2) + ')';
+        ctx.fillRect((sx + VIEW_W) % VIEW_W, sy, 1, 1);
+      }
+    }
+
+    // a whole planet, for scale
+    if (THEME.planet) {
+      const P = THEME.planet;
+      const px = P.x - camX * P.px, py = P.y - camY * P.py;
+      ctx.fillStyle = '#2b5f8f';
+      ctx.beginPath(); ctx.arc(px, py, P.r, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#3f7d54';                       // continents
+      ctx.beginPath(); ctx.arc(px - P.r * 0.3, py - P.r * 0.2, P.r * 0.38, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(px + P.r * 0.34, py + P.r * 0.26, P.r * 0.3, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.22)';        // cloud smear
+      ctx.beginPath(); ctx.arc(px + P.r * 0.1, py - P.r * 0.45, P.r * 0.3, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(0,0,0,0.42)';              // terminator
+      ctx.beginPath(); ctx.arc(px + P.r * 0.55, py + P.r * 0.1, P.r * 0.92, 0, Math.PI * 2); ctx.fill();
+    }
+
     // low sun - one soft radial falloff, so it reads as haze rather than as a
     // flat disc pasted over the sky
     const S = THEME.sun;
@@ -533,6 +563,30 @@ class Game {
       const mx = clamp(sx, 8, VIEW_W - 8), my = clamp(sy, 8, VIEW_H - 8);
       ctx.fillStyle = p.index === 0 ? '#5ec8ff' : '#ff9a5e';
       ctx.fillRect(Math.round(mx) - 3, Math.round(my) - 3, 6, 6);
+    }
+  }
+
+  // Weather that lives in front of the world but behind the HUD. Particles are
+  // spawned across the camera rather than the map, so cost does not scale with
+  // level size.
+  updateWeather(dt) {
+    const w = THEME.weather;
+    if (!w) return;
+    const n = w === 'snow' ? 3 : w === 'dust' ? 1 : 1;
+    for (let i = 0; i < n; i++) {
+      if (w === 'drip' && Math.random() > 0.35) continue;
+      const x = this.camX + rand(-20, VIEW_W + 20);
+      const y = this.camY - rand(0, 20);
+      if (w === 'snow') {
+        this.particles.push(new Particle(x, y, rand(-26, 8), rand(26, 58),
+          rand(3.5, 6), pick(['#ffffff', '#e2ecf7', '#c9dcee']), randInt(1, 2), 'flake'));
+      } else if (w === 'drip') {
+        this.particles.push(new Particle(x, y, rand(-4, 4), rand(90, 150),
+          rand(1.6, 2.6), pick(['#8fe07a', '#6fbf5e', '#bfeaa8']), 1, 'flake'));
+      } else {
+        this.particles.push(new Particle(x, y + rand(0, VIEW_H), rand(-14, 14), rand(-6, 6),
+          rand(2.5, 5), pick(['#8f96a6', '#b0b7c6']), 1, 'flake'));
+      }
     }
   }
 

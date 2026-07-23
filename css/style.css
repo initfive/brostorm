@@ -465,19 +465,19 @@ html, body {
 
 #missions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(258px, 1fr));
+  gap: 14px;
 }
 
 .mission {
   position: relative;
-  min-height: 132px;
+  min-height: 104px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
   gap: 8px;
-  padding: 24px 22px;
+  padding: 20px 18px;
   text-align: left;
   border: 2px solid rgba(255, 255, 255, 0.09);
   border-radius: 6px;
@@ -510,14 +510,14 @@ html, body {
 .mission.active .mkey { background: var(--gold); }
 
 .mission b {
-  font-size: 19px;
+  font-size: 16px;
   font-weight: 800;
   letter-spacing: 0.1em;
   line-height: 1.15;
 }
 .mblurb {
-  font-size: 11px;
-  line-height: 1.55;
+  font-size: 10px;
+  line-height: 1.5;
   color: #8b93a6;
 }
 
@@ -544,7 +544,7 @@ html, body {
 .footnote b { color: #8a93a5; }
 
 @media (max-width: 760px) {
-  .big-slots, #missions { grid-template-columns: 1fr; }
+  .big-slots { grid-template-columns: 1fr; }
 }
 
 /* Locked in while picking manually: the slot commits to gold. */

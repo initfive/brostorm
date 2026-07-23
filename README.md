@@ -92,6 +92,7 @@ selection; the character cards become a menu again.
 | **SGT. RUBBLE** | Combat shotgun — 7 pellets, huge knockback | 3 × remote C4 | Slow and heavy; blows wide holes through walls |
 | **THE OFFICE COMMANDO** | Burst stapler — three rounds per trigger pull | 4 × exploding briefcase | Fastest mover, rolled-up sleeves, no patience |
 | **THE GARDENER** | Leaf blower — a cone of wind, no damage at all | 5 × explosive gnome | Straw hat, moustache, strong opinions about tidiness |
+| **MOSS EYE** | Camo sniper — slow, flat, deadly accurate | 3 × piercing round | Stand still and the enemy stops seeing you |
 | **GRANDMA GRENADIER** | Grenade launcher — lobs arcing shells | 2 × cluster shell (splits into 5 bomblets) | Slowest by far, and by far the largest craters |
 
 Both players may pick the same character.
@@ -102,6 +103,11 @@ own — you decide when.
 
 The shotgun's recoil is strong enough to rocket-jump with. Fire downward in
 mid-air to gain height.
+
+**Moss Eye disappears when you stop moving.** Hold still for about
+three quarters of a second and enemies stop seeing you entirely — they will walk
+straight past. Moving or firing breaks it. The piercing round goes through
+soldiers *and* walls and keeps going, so it is worth lining people up.
 
 **The leaf blower does no damage whatsoever.** It moves things: guards, barrels,
 chickens, corpses, live grenades, incoming bullets and your own partner. Weight
@@ -142,7 +148,7 @@ but will never lift you, so it is a landing tool, not flight.
 
 ## Missions
 
-Pick one on the title screen with `1` or `2`.
+Five of them, chosen on the second menu step.
 
 **1 · OPERATION IRON GULCH** — 252 × 40. Dusk over a green valley: landing zone,
 lava crossing, garrisoned bunker, buried tunnels, watchtower, lava lake, a
@@ -155,7 +161,19 @@ segment and the detonation walks the entire run, taking out everything standing
 near it. Tanks are steel shells packed with fuel cells — breach one and the
 contents chain.
 
-Both maps are generated from fixed seeds in `js/level.js`, so they are identical
+**3 · OPERATION GREENLIGHT** — 250 × 42. A prison camp under a heavy canopy.
+Hostages hang in cages strung from the branches: shoot a cage open, then go and
+fetch whoever falls out. Bamboo bridges, watchtowers, a swamp.
+
+**4 · OPERATION WHITEOUT** — 250 × 42. A fortress in a blizzard. Ice gives you
+almost no grip, so you slide well past where you stopped steering, and every
+explosion brings a ceiling of icicles down on whoever is underneath.
+
+**5 · OPERATION LONG NIGHT** — 260 × 44. A lunar base at two fifths gravity.
+Every jump arc you know is wrong, craters are cleared in one lazy hop, and the
+oxygen tanks become rockets when punctured. Earth watches from the sky.
+
+All maps are generated from fixed seeds in `js/level.js`, so they are identical
 every run but easy to edit — see the numbered section comments. Each mission
 entry in the `LEVELS` registry carries its own size, skyline and theme.
 
@@ -181,7 +199,7 @@ refinery, apart from what gets built.
 | Blast radii | `explode()` calls in `js/entities.js` |
 | Level layout & enemy placement | `js/level.js` |
 | Mission list | `LEVELS` at the bottom of `js/level.js` |
-| Palettes, skies, parallax | `js/themes.js` |
+| Palettes, skies, parallax, weather, per-level gravity | `js/themes.js` |
 | Character silhouettes & animation | `js/sprite.js` |
 
 ## Files

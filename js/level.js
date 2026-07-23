@@ -487,6 +487,433 @@ function buildRefinery(game) {
 }
 
 // ---------------------------------------------------------------------------
+// Shared helpers for the later missions.
+// ---------------------------------------------------------------------------
+
+function baseGround(ter, rng, opts) {
+  opts = opts || {};
+  const top = opts.top === undefined ? DIRT : opts.top;
+  const deep = opts.deep === undefined ? STONE : opts.deep;
+  for (let x = 0; x < LEVEL_W; x++) {
+    const g = groundAt(x) + (x > 20 && rng() < 0.12 ? 1 : 0);
+    for (let y = g; y < LEVEL_H; y++) {
+      let t = top;
+      if (y > g + (opts.skin || 4) + Math.floor(rng() * 3)) t = deep;
+      if (y >= LEVEL_H - 2) t = BEDROCK;
+      ter.set(x, y, t);
+    }
+  }
+  for (let y = 0; y < LEVEL_H; y++) {
+    ter.set(0, y, BEDROCK); ter.set(1, y, BEDROCK);
+    ter.set(LEVEL_W - 1, y, BEDROCK); ter.set(LEVEL_W - 2, y, BEDROCK);
+  }
+  for (let i = 0; i < 70; i++) {
+    const x = Math.floor(rng() * LEVEL_W), y = groundAt(x) + 3 + Math.floor(rng() * 9);
+    const r = 1 + Math.floor(rng() * 2);
+    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+      if (ter.get(x + dx, y + dy) === top) ter.set(x + dx, y + dy, deep);
+    }
+  }
+  ter.computeBackground();
+}
+
+// ---------------------------------------------------------------------------
+// "OPERATION GREENLIGHT" - jungle prison camp
+//
+// Hostages hang in cages strung from the canopy. Shoot a cage open, then go
+// and fetch whoever falls out.
+// ---------------------------------------------------------------------------
+
+const JUNGLE_GROUND = [
+  [0, 27], [18, 27], [26, 25], [42, 25], [48, 28], [62, 28], [70, 26],
+  [86, 26], [94, 29], [110, 29], [118, 25], [134, 25], [142, 29], [158, 29],
+  [166, 26], [184, 26], [192, 28], [206, 28], [214, 25], [232, 25], [248, 26]
+];
+
+function buildJungle(game) {
+  const ter = new Terrain(LEVEL_W, LEVEL_H);
+  const rng = makeRng(0x17A9);
+  game.terrain = ter;
+  baseGround(ter, rng, { skin: 5 });
+
+  function surf(tx) {
+    for (let y = 0; y < LEVEL_H; y++) if (ter.solid(tx, y)) return y * T;
+    return (LEVEL_H - 2) * T;
+  }
+  const spawn = (E, tx, y) => game.enemies.push(new E(game, tx * T + T / 2, y));
+  const barrelAt = (tx, y) => game.enemies.push(new Barrel(game, tx * T + T / 2, y));
+  const chickenAt = (tx, y) => game.enemies.push(new Chicken(game, tx * T + T / 2, y));
+
+  // a hostage in a cage strung from a canopy branch
+  function cagedPow(tx, ty) {
+    const pow = new Pow(game, tx * T + T / 2, (ty + 1) * T);
+    game.enemies.push(pow);
+    game.enemies.push(new Cage(game, tx * T + T / 2, ty * T, pow));
+  }
+  function bamboo(tx, ty, w) {
+    for (let i = 0; i < w; i++) ter.set(tx + i, ty, WOOD);
+  }
+  function tower(tx, h) {
+    const base = groundAt(tx);
+    ter.markInterior(tx, base - h, 6, h);
+    ter.fillRect(tx, base - h, 6, h, EMPTY);
+    ter.outlineRect(tx, base - h, 6, h, WOOD);
+    ter.fillRect(tx, base - 1, 2, 2, EMPTY);
+    spawn(Turret, tx + 3, (base - h) * T);
+  }
+
+  // SECTION 1 - riverbank
+  game.spawnX = 8 * T;
+  game.spawnY = surf(8);
+  chickenAt(14, surf(14));
+  spawn(Grunt, 20, surf(20));
+  spawn(Grunt, 27, surf(27));
+  cagedPow(32, groundAt(32) - 12);
+
+  // SECTION 2 - bamboo bridge over a gorge
+  for (let x = 38; x < 52; x++) {
+    const g = groundAt(x);
+    for (let y = g; y < g + 14; y++) ter.set(x, y, EMPTY);
+  }
+  bamboo(38, groundAt(40) - 2, 14);
+  spawn(Grunt, 45, (groundAt(40) - 3) * T);
+  spawn(Rusher, 55, surf(55));
+  chickenAt(58, surf(58));
+
+  // SECTION 3 - the camp proper
+  tower(64, 14);
+  tower(78, 12);
+  cagedPow(70, groundAt(70) - 14);
+  cagedPow(74, groundAt(74) - 11);
+  spawn(Grunt, 68, surf(68), 'sleep');
+  game.props.push({ type: 'chair', x: 68 * T + 8, y: surf(68), facing: 1 });
+  game.enemies.push(new Grunt(game, 68 * T, surf(68), 'sleep'));
+  spawn(Grunt, 82, surf(82));
+  barrelAt(76, surf(76));
+  game.enemies.push(new Poster(game, 80 * T, (groundAt(80) - 5) * T, 1));
+
+  // SECTION 4 - canopy climb
+  for (let i = 0; i < 5; i++) bamboo(90 + i * 6, groundAt(94) - 5 - i * 4, 5);
+  spawn(Grunt, 96, (groundAt(94) - 9) * T);
+  spawn(Rusher, 104, surf(104));
+  cagedPow(112, groundAt(112) - 18);
+  chickenAt(108, surf(108));
+
+  // SECTION 5 - swamp
+  for (let x = 120; x < 138; x++) {
+    const g = groundAt(x);
+    for (let y = g; y < g + 8; y++) ter.set(x, y, EMPTY);
+    for (let y = g + 5; y < g + 8; y++) ter.set(x, y, LAVA);
+  }
+  bamboo(124, groundAt(126) - 4, 4);
+  bamboo(131, groundAt(133) - 6, 4);
+  spawn(Grunt, 140, surf(140));
+  spawn(Rusher, 144, surf(144));
+
+  // SECTION 6 - the long house
+  const hx = 150, hTop = groundAt(hx + 8) - 12;
+  ter.markInterior(hx, hTop, 20, 13);
+  ter.fillRect(hx, hTop, 20, 13, EMPTY);
+  ter.outlineRect(hx, hTop, 20, 13, WOOD);
+  ter.fillRect(hx, hTop + 9, 1, 4, EMPTY);
+  ter.fillRect(hx + 19, hTop + 9, 1, 4, EMPTY);
+  spawn(Turret, hx + 4, hTop * T);
+  spawn(Grunt, hx + 6, (hTop + 12) * T);
+  spawn(Grunt, hx + 14, (hTop + 12) * T);
+  spawn(Rusher, hx + 10, (hTop + 12) * T);
+  cagedPow(hx + 16, hTop + 1);
+  barrelAt(hx + 3, (hTop + 12) * T);
+
+  // SECTION 7 - the last stretch
+  tower(176, 16);
+  spawn(Grunt, 184, surf(184));
+  spawn(Rusher, 190, surf(190));
+  spawn(Grunt, 196, surf(196));
+  cagedPow(200, groundAt(200) - 13);
+  barrelAt(204, surf(204));
+  chickenAt(207, surf(207));
+  spawn(Turret, 212, surf(212));
+
+  const padY = groundAt(224) - 4;
+  ter.fillRect(218, padY, 16, 2, BEDROCK);
+  for (let x = 218; x < 234; x++)
+    for (let y = padY + 2; y < LEVEL_H; y++)
+      if (ter.get(x, y) !== BEDROCK) ter.set(x, y, STONE);
+
+  game.goal = { x: 222 * T, y: (padY - 3) * T, w: 10 * T, h: 5 * T };
+  game.totalEnemies = game.enemies.filter(isScoredEnemy).length;
+  return ter;
+}
+
+// ---------------------------------------------------------------------------
+// "OPERATION WHITEOUT" - snow fortress
+//
+// Ice barely grips, and the ceilings are full of icicles that come down when
+// anything goes off nearby.
+// ---------------------------------------------------------------------------
+
+const SNOW_GROUND = [
+  [0, 26], [16, 26], [24, 24], [40, 24], [46, 28], [60, 28], [66, 25],
+  [82, 25], [90, 29], [106, 29], [114, 25], [130, 25], [138, 28], [154, 28],
+  [162, 24], [180, 24], [188, 27], [202, 27], [210, 24], [230, 24], [248, 25]
+];
+
+function buildSnow(game) {
+  const ter = new Terrain(LEVEL_W, LEVEL_H);
+  const rng = makeRng(0x5A0C);
+  game.terrain = ter;
+  baseGround(ter, rng, { skin: 5 });
+
+  function surf(tx) {
+    for (let y = 0; y < LEVEL_H; y++) if (ter.solid(tx, y)) return y * T;
+    return (LEVEL_H - 2) * T;
+  }
+  const spawn = (E, tx, y) => game.enemies.push(new E(game, tx * T + T / 2, y));
+  const barrelAt = (tx, y) => game.enemies.push(new Barrel(game, tx * T + T / 2, y));
+  const powAt = (tx, y) => game.enemies.push(new Pow(game, tx * T + T / 2, y));
+
+  function rink(tx, w) {
+    for (let i = 0; i < w; i++) {
+      const g = groundAt(tx + i);
+      ter.set(tx + i, g, ICE);
+      ter.set(tx + i, g + 1, ICE);
+    }
+  }
+  function icicles(tx, ty, n, step) {
+    for (let i = 0; i < n; i++)
+      game.enemies.push(new Icicle(game, (tx + i * (step || 2)) * T + T / 2, ty * T));
+  }
+  function keep(tx, ty, w, h, mat) {
+    ter.markInterior(tx, ty, w, h);
+    ter.fillRect(tx, ty, w, h, EMPTY);
+    ter.outlineRect(tx, ty, w, h, mat || STONE);
+  }
+
+  // SECTION 1 - approach
+  game.spawnX = 8 * T;
+  game.spawnY = surf(8);
+  spawn(Grunt, 18, surf(18));
+  rink(24, 14);
+  spawn(Grunt, 30, surf(30));
+  barrelAt(36, surf(36));
+
+  // SECTION 2 - crevasse under an overhang
+  for (let x = 44; x < 58; x++) {
+    const g = groundAt(x);
+    for (let y = g; y < g + 12; y++) ter.set(x, y, EMPTY);
+  }
+  for (let x = 44; x < 58; x++) ter.set(x, groundAt(x) - 9, ICE);
+  icicles(45, groundAt(46) - 8, 6, 2);
+  spawn(Rusher, 62, surf(62));
+  rink(60, 10);
+
+  // SECTION 3 - the gatehouse
+  const gTop = groundAt(76) - 11;
+  keep(70, gTop, 16, 12);
+  ter.fillRect(74, gTop + 12, 2, 3, EMPTY);
+  spawn(Turret, 78, gTop * T);
+  spawn(Grunt, 73, (gTop + 11) * T);
+  spawn(Grunt, 82, (gTop + 11) * T);
+  powAt(80, (gTop + 11) * T);
+  icicles(71, gTop + 1, 6, 2);
+  barrelAt(76, (gTop + 11) * T);
+  game.enemies.push(new Poster(game, 71 * T, (gTop + 4) * T, 1));
+
+  // SECTION 4 - frozen lake
+  rink(92, 22);
+  spawn(Grunt, 96, surf(96));
+  spawn(Rusher, 104, surf(104));
+  spawn(Grunt, 110, surf(110));
+  barrelAt(100, surf(100));
+
+  // SECTION 5 - the keep, three floors
+  const kx = 122, kTop = groundAt(kx + 8) - 20;
+  keep(kx, kTop, 18, 21);
+  for (let f = 0; f < 3; f++) {
+    const fy = kTop + 5 + f * 5;
+    for (let i = kx + 1; i < kx + 17; i++) ter.set(i, fy, WOOD);
+    ter.set(kx + (f % 2 ? 3 : 14), fy, EMPTY);
+    ter.set(kx + (f % 2 ? 4 : 13), fy, EMPTY);
+    icicles(kx + 2, fy + 1, 5, 3);
+  }
+  ter.fillRect(kx, kTop + 19, 2, 2, EMPTY);
+  spawn(Turret, kx + 9, kTop * T);
+  spawn(Grunt, kx + 4, (kTop + 9) * T);
+  spawn(Grunt, kx + 12, (kTop + 14) * T);
+  spawn(Rusher, kx + 7, (kTop + 20) * T);
+  powAt(kx + 15, (kTop + 4) * T);
+  powAt(kx + 3, (kTop + 20) * T);
+  barrelAt(kx + 10, (kTop + 20) * T);
+  game.props.push({ type: 'chair', x: (kx + 12) * T + 8, y: (kTop + 20) * T, facing: -1 });
+  game.enemies.push(new Grunt(game, (kx + 12) * T, (kTop + 20) * T, 'sleep'));
+
+  // SECTION 6 - the long slide
+  rink(146, 26);
+  spawn(Grunt, 150, surf(150));
+  spawn(Rusher, 158, surf(158));
+  spawn(Grunt, 166, surf(166));
+  barrelAt(162, surf(162));
+  barrelAt(163, surf(163));
+
+  // SECTION 7 - the last wall
+  const wTop = groundAt(186) - 14;
+  keep(180, wTop, 14, 15, ICE);
+  spawn(Turret, 186, wTop * T);
+  spawn(Grunt, 183, (wTop + 14) * T);
+  spawn(Grunt, 191, (wTop + 14) * T);
+  icicles(181, wTop + 1, 6, 2);
+  powAt(188, (wTop + 14) * T);
+  spawn(Rusher, 200, surf(200));
+  spawn(Grunt, 206, surf(206));
+  game.props.push({ type: 'flame', x: 210 * T + 8, y: surf(210) - 14, phase: 0.6 });
+  barrelAt(210, surf(210));
+  game.enemies.push(new Grunt(game, 212 * T, surf(212), 'warm'));
+
+  const padY = groundAt(228) - 4;
+  ter.fillRect(222, padY, 16, 2, BEDROCK);
+  for (let x = 222; x < 238; x++)
+    for (let y = padY + 2; y < LEVEL_H; y++)
+      if (ter.get(x, y) !== BEDROCK) ter.set(x, y, STONE);
+
+  game.goal = { x: 226 * T, y: (padY - 3) * T, w: 10 * T, h: 5 * T };
+  game.totalEnemies = game.enemies.filter(isScoredEnemy).length;
+  return ter;
+}
+
+// ---------------------------------------------------------------------------
+// "OPERATION LONG NIGHT" - lunar military base
+//
+// Two fifths gravity. Everything you know about jump arcs is now wrong, and
+// the oxygen tanks do not appreciate being shot.
+// ---------------------------------------------------------------------------
+
+const MOON_GROUND = [
+  [0, 28], [18, 28], [26, 25], [44, 25], [52, 30], [66, 30], [74, 26],
+  [92, 26], [100, 31], [116, 31], [124, 26], [142, 26], [150, 30], [166, 30],
+  [174, 25], [192, 25], [200, 29], [216, 29], [224, 25], [242, 25], [258, 26]
+];
+
+function buildMoon(game) {
+  const ter = new Terrain(LEVEL_W, LEVEL_H);
+  const rng = makeRng(0x1005);
+  game.terrain = ter;
+  baseGround(ter, rng, { skin: 3 });
+
+  function surf(tx) {
+    for (let y = 0; y < LEVEL_H; y++) if (ter.solid(tx, y)) return y * T;
+    return (LEVEL_H - 2) * T;
+  }
+  const spawn = (E, tx, y) => game.enemies.push(new E(game, tx * T + T / 2, y));
+  const tankAt = (tx, y) => game.enemies.push(new O2Tank(game, tx * T + T / 2, y));
+  const powAt = (tx, y) => game.enemies.push(new Pow(game, tx * T + T / 2, y));
+
+  function dome(tx, r) {
+    const base = groundAt(tx);
+    ter.markInterior(tx - r, base - r, r * 2, r);
+    for (let dy = -r; dy <= 0; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        const d = Math.hypot(dx, dy);
+        if (d > r) continue;
+        if (d > r - 1.2) ter.set(tx + dx, base + dy, METAL);
+        else ter.set(tx + dx, base + dy, EMPTY);
+      }
+    }
+    ter.fillRect(tx - 1, base - 1, 2, 1, EMPTY);
+  }
+  function pad(tx, ty, w) { for (let i = 0; i < w; i++) ter.set(tx + i, ty, METAL); }
+
+  // SECTION 1 - landing site
+  game.spawnX = 8 * T;
+  game.spawnY = surf(8);
+  game.props.push({ type: 'tower', x: 16 * T, y: surf(16), h: 44 });
+  spawn(Grunt, 22, surf(22));
+  tankAt(26, surf(26));
+  spawn(Grunt, 30, surf(30));
+
+  // SECTION 2 - crater, cleared in one lazy hop
+  for (let x = 36; x < 56; x++) {
+    const g = groundAt(x);
+    const d = 9 - Math.abs(x - 46) * 0.7;
+    for (let y = g; y < g + Math.max(0, d); y++) ter.set(x, y, EMPTY);
+  }
+  pad(42, groundAt(46) - 10, 8);
+  spawn(Grunt, 45, (groundAt(46) - 11) * T);
+  spawn(Rusher, 60, surf(60));
+
+  // SECTION 3 - habitat domes
+  dome(70, 9);
+  dome(86, 7);
+  spawn(Turret, 70, (groundAt(70) - 9) * T);
+  spawn(Grunt, 67, surf(67));
+  spawn(Grunt, 88, surf(88));
+  powAt(72, surf(72));
+  tankAt(84, surf(84));
+  tankAt(90, surf(90));
+  game.enemies.push(new Poster(game, 64 * T, (groundAt(64) - 5) * T, 1));
+
+  // SECTION 4 - the mast field, tall because you can reach it
+  for (let i = 0; i < 4; i++) {
+    game.props.push({ type: 'tower', x: (100 + i * 8) * T, y: surf(100 + i * 8), h: 30 + i * 8 });
+    pad(99 + i * 8, groundAt(100 + i * 8) - 9 - i * 3, 5);
+  }
+  spawn(Grunt, 104, (groundAt(104) - 13) * T);
+  spawn(Grunt, 116, (groundAt(116) - 19) * T);
+  spawn(Rusher, 110, surf(110));
+  tankAt(122, surf(122));
+
+  // SECTION 5 - coolant trench
+  for (let x = 130; x < 148; x++) {
+    const g = groundAt(x);
+    for (let y = g; y < g + 10; y++) ter.set(x, y, EMPTY);
+    for (let y = g + 7; y < g + 10; y++) ter.set(x, y, LAVA);
+  }
+  pad(136, groundAt(138) - 7, 6);
+  spawn(Grunt, 138, (groundAt(138) - 8) * T);
+  spawn(Grunt, 152, surf(152));
+
+  // SECTION 6 - the reactor block
+  const rx = 158, rTop = groundAt(rx + 9) - 22;
+  ter.markInterior(rx, rTop, 20, 23);
+  ter.fillRect(rx, rTop, 20, 23, EMPTY);
+  ter.outlineRect(rx, rTop, 20, 23, METAL);
+  for (let f = 0; f < 4; f++) {
+    const fy = rTop + 5 + f * 5;
+    for (let i = rx + 1; i < rx + 19; i++) ter.set(i, fy, METAL);
+    ter.set(rx + (f % 2 ? 3 : 16), fy, EMPTY);
+    ter.set(rx + (f % 2 ? 4 : 15), fy, EMPTY);
+  }
+  ter.fillRect(rx, rTop + 21, 2, 2, EMPTY);
+  spawn(Turret, rx + 10, rTop * T);
+  spawn(Grunt, rx + 5, (rTop + 9) * T);
+  spawn(Grunt, rx + 14, (rTop + 14) * T);
+  spawn(Rusher, rx + 8, (rTop + 22) * T);
+  powAt(rx + 17, (rTop + 4) * T);
+  powAt(rx + 3, (rTop + 22) * T);
+  tankAt(rx + 12, (rTop + 22) * T);
+  tankAt(rx + 6, (rTop + 19) * T);
+
+  // SECTION 7 - the open plain
+  spawn(Grunt, 186, surf(186));
+  spawn(Rusher, 192, surf(192));
+  spawn(Grunt, 198, surf(198));
+  spawn(Turret, 204, surf(204));
+  tankAt(196, surf(196));
+  powAt(208, surf(208));
+  game.props.push({ type: 'tower', x: 214 * T, y: surf(214), h: 36 });
+  spawn(Grunt, 220, surf(220));
+
+  const padY = groundAt(236) - 4;
+  ter.fillRect(230, padY, 16, 2, BEDROCK);
+  for (let x = 230; x < 246; x++)
+    for (let y = padY + 2; y < LEVEL_H; y++)
+      if (ter.get(x, y) !== BEDROCK) ter.set(x, y, STONE);
+
+  game.goal = { x: 234 * T, y: (padY - 3) * T, w: 10 * T, h: 5 * T };
+  game.totalEnemies = game.enemies.filter(isScoredEnemy).length;
+  return ter;
+}
+
+// ---------------------------------------------------------------------------
 // mission registry
 // ---------------------------------------------------------------------------
 
@@ -500,6 +927,21 @@ const LEVELS = [
     id: 'refinery', name: 'OPERATION BLACKTAP', theme: 'refinery',
     w: 262, h: 42, ground: REFINERY_GROUND, build: buildRefinery,
     blurb: 'Sand and steel. Rupture a pipeline and the blast walks the whole run.'
+  },
+  {
+    id: 'jungle', name: 'OPERATION GREENLIGHT', theme: 'jungle',
+    w: 250, h: 42, ground: JUNGLE_GROUND, build: buildJungle,
+    blurb: 'Prison camp under the canopy. Shoot the cages open, then go and get them.'
+  },
+  {
+    id: 'snow', name: 'OPERATION WHITEOUT', theme: 'snow',
+    w: 250, h: 42, ground: SNOW_GROUND, build: buildSnow,
+    blurb: 'Ice gives you no grip, and every blast brings the ceiling down.'
+  },
+  {
+    id: 'moon', name: 'OPERATION LONG NIGHT', theme: 'moon',
+    w: 260, h: 44, ground: MOON_GROUND, build: buildMoon,
+    blurb: 'Two fifths gravity. Every jump arc you know is now wrong.'
   }
 ];
 
@@ -510,5 +952,6 @@ function buildLevel(game) {
   LEVEL_NAME = lv.name;
   GROUND_POINTS = lv.ground;
   setTheme(lv.theme);
+  GRAV_SCALE = THEME.gravity || 1;
   return lv.build(game);
 }

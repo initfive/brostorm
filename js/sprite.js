@@ -89,6 +89,15 @@ function drawWeaponShape(ctx, type, accent, muzzle) {
       ctx.fillStyle = accent; ctx.fillRect(-1, 3, 6, 3);      // drum magazine
       ctx.fillStyle = metal; ctx.fillRect(-4, -3, 15, 1);
       break;
+    case 'sniper':
+      ctx.fillStyle = dark; ctx.fillRect(-4, -1, 20, 2);       // long barrel
+      ctx.fillStyle = '#3d4a30'; ctx.fillRect(-6, -2, 8, 5);   // stock
+      ctx.fillStyle = mid; ctx.fillRect(-1, -2, 6, 4);         // action
+      ctx.fillStyle = '#20242a'; ctx.fillRect(0, -5, 7, 3);    // scope
+      ctx.fillStyle = accent; ctx.fillRect(6, -5, 2, 2);       // lens
+      ctx.fillStyle = dark; ctx.fillRect(12, 1, 2, 4);         // bipod
+      ctx.fillRect(14, 1, 2, 4);
+      break;
     case 'blower':
       ctx.fillStyle = '#2f6b34'; ctx.fillRect(-6, -4, 9, 8);   // engine housing
       ctx.fillStyle = '#3f8a44'; ctx.fillRect(-6, -4, 9, 3);
@@ -145,6 +154,23 @@ function drawHead(ctx, look, hx, hy, w, h, facing) {
       ctx.fillStyle = look.hair; ctx.fillRect(hx, hy - 2, w, 4);
       ctx.fillStyle = shade(look.hair, 30);
       ctx.fillRect(hx + (facing > 0 ? w - 4 : 1), hy - 2, 3, 2);
+      break;
+    case 'ghillie':                               // shaggy hood, lit eyes
+      ctx.fillStyle = '#20281a';                                  // shadowed face
+      ctx.fillRect(hx, hy + 2, w, h - 2);
+      ctx.fillStyle = '#e8a83a';                                  // eyes
+      ctx.fillRect(hx + (facing > 0 ? w - 4 : 1), hy + 4, 2, 2);
+      ctx.fillRect(hx + (facing > 0 ? w - 7 : 4), hy + 4, 2, 2);
+      ctx.fillStyle = look.hair;                                  // hood mass
+      ctx.fillRect(hx - 2, hy - 3, w + 4, 5);
+      ctx.fillStyle = shade(look.hair, 22);
+      ctx.fillRect(hx - 1, hy - 4, w - 1, 3);
+      // ragged fronds hanging off the hood
+      ctx.fillStyle = look.shirt2;
+      ctx.fillRect(hx - 4, hy - 1, 3, 5);
+      ctx.fillRect(hx + w + 1, hy - 2, 3, 4);
+      ctx.fillRect(hx - 3, hy + 4, 2, 4);
+      ctx.fillRect(hx + w + 1, hy + 3, 2, 5);
       break;
     case 'straw':                                 // wide straw hat, low brim
       ctx.fillStyle = '#d9b463';
@@ -273,6 +299,17 @@ function drawChar(ctx, look, cx, feetY, o) {
   } else if (look.chest === 'sash') {
     ctx.fillStyle = look.accent;
     ctx.fillRect(-B.torsoW / 2 + lean, torsoTop + 2, B.torsoW, 2);
+  } else if (look.chest === 'ghillie') {
+    // torn strips of netting and foliage, deliberately uneven
+    ctx.fillStyle = look.shirt2;
+    ctx.fillRect(-B.torsoW / 2 - 2 + lean, torsoTop + 1, 3, 8);
+    ctx.fillRect(B.torsoW / 2 - 1 + lean, torsoTop + 2, 3, 7);
+    ctx.fillStyle = look.accent;
+    ctx.fillRect(-B.torsoW / 2 + 1 + lean, torsoTop + 2, 3, 6);
+    ctx.fillRect(B.torsoW / 2 - 4 + lean, torsoTop + 4, 3, 5);
+    ctx.fillRect(-1 + lean, torsoTop + 1, 3, 7);
+    ctx.fillStyle = shade(look.shirt, -18);
+    ctx.fillRect(-B.torsoW / 2 + lean, torsoTop + B.torsoH - 1, B.torsoW, 3);
   } else if (look.chest === 'overalls') {
     ctx.fillStyle = look.accent;
     ctx.fillRect(-B.torsoW / 2 + 1 + lean, torsoTop + 3, B.torsoW - 2, B.torsoH - 3);

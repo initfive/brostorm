@@ -50,6 +50,17 @@ const CHARS = [
     pants: '#3f6fa8', boots: '#4a3a28'
   },
   {
+    id: 'mosseye',
+    name: 'MOSS EYE',
+    tag: 'CAMO SNIPER  /  PIERCING ROUND',
+    blurb: 'Stand still and the enemy stops seeing you. Then take the shot.',
+    weapon: 'sniper', special: 'pierce', specialMax: 3,
+    speed: 148, jump: 318, camo: true,
+    head: 'ghillie', chest: 'ghillie', accent: '#8fae4a',
+    skin: '#c8a074', hair: '#5c6b33', shirt: '#47562c', shirt2: '#6b7d3a',
+    pants: '#3a4626', boots: '#25301a'
+  },
+  {
     id: 'grandma',
     name: 'GRANDMA GRENADIER',
     tag: 'GRENADE LAUNCHER  /  CLUSTER SHELL',
@@ -79,6 +90,13 @@ const WEAPONS = {
     rate: 0.42, burst: 3, burstGap: 0.06, pellets: 1, spread: 0.06,
     speed: 520, life: 0.8, carveR: 2.8, carveDmg: 2, kick: 30,
     size: 3, color: '#cfd8e6', sfx: 'rifle'
+  },
+  // Slow, flat and accurate. Rewards standing still, which is also what keeps
+  // Moss Eye invisible.
+  sniper: {
+    label: 'SNIPER',
+    rate: 1.05, pellets: 1, spread: 0.004, speed: 1250, life: 0.85,
+    carveR: 2.6, carveDmg: 7, kick: 130, size: 2, color: '#dcffae', sfx: 'shotgun'
   },
   // Continuous cone of wind. Deals no damage at all - it moves things. Cone is
   // stored as a cosine so the test per object is a single dot product.
@@ -157,7 +175,8 @@ class Ent {
   }
 
   gravity(dt, scale) {
-    this.vy = Math.min(this.vy + GRAVITY * (scale === undefined ? 1 : scale) * dt, TERMINAL_VY);
+    this.vy = Math.min(
+      this.vy + gravNow() * (scale === undefined ? 1 : scale) * dt, terminalNow());
   }
 
   overlaps(o) {
@@ -192,14 +211,21 @@ class Particle {
       this.vx *= 0.94; this.vy = this.vy * 0.94 - 12 * dt;
       return;
     }
+    // weather motes: drift, ignore the world, never pile up
+    if (this.kind === 'flake') {
+      this.x += this.vx * dt;
+      this.y += this.vy * dt;
+      this.vx += Math.sin(this.y * 0.05 + this.maxLife) * 12 * dt;
+      return;
+    }
     if (this.kind === 'spark') {
       this.x += this.vx * dt; this.y += this.vy * dt;
-      this.vy += GRAVITY * 0.35 * dt;
+      this.vy += gravNow() * 0.35 * dt;
       this.vx *= 0.97;
       return;
     }
     // 'bit' - debris and gibs, they collide with the world and bounce.
-    this.vy = Math.min(this.vy + GRAVITY * dt, TERMINAL_VY);
+    this.vy = Math.min(this.vy + gravNow() * dt, terminalNow());
     const nx = this.x + this.vx * dt;
     if (ter.solidPx(nx, this.y)) { this.vx *= -0.4; } else { this.x = nx; }
     const ny = this.y + this.vy * dt;
@@ -215,7 +241,9 @@ class Particle {
   draw(ctx, camX, camY) {
     const a = this.kind === 'bit'
       ? (this.life < 0.4 ? this.life / 0.4 : 1)
-      : this.life / this.maxLife;
+      : this.kind === 'flake'
+        ? Math.min(1, this.life / 0.8) * 0.75
+        : this.life / this.maxLife;
     ctx.globalAlpha = clamp(a, 0, 1);
     ctx.fillStyle = this.color;
     let s = this.size;
@@ -239,6 +267,7 @@ class Bullet {
     this.owner = owner || null;
     this.dead = false;
     this.px = x; this.py = y;
+    this.hitOnce = cfg.pierce ? new Set() : null;
   }
 
   update(dt) {
@@ -257,19 +286,19 @@ class Bullet {
       const targets = this.team === 0 ? g.enemies : g.players;
       for (const t of targets) {
         if (t.dead || !t.hittable) continue;
+        if (this.hitOnce && this.hitOnce.has(t)) continue;
         if (this.x > t.x && this.x < t.x + t.w && this.y > t.y && this.y < t.y + t.h) {
           t.hurt(1, sgn(this.vx) * 90, -40, g);
           g.burst(this.x, this.y, 5, '#d8382f', 90, 0.3);
-          this.dead = true;
-          return;
+          if (!this.cfg.pierce) { this.dead = true; return; }
+          this.hitOnce.add(t);
         }
       }
 
       if (g.terrain.solidPx(this.x, this.y)) {
         g.terrain.damageCircle(this.x, this.y, this.cfg.carveR, this.cfg.carveDmg, g);
         g.burst(this.x - sx, this.y - sy, 4, '#ffd98a', 110, 0.2, 'spark');
-        this.dead = true;
-        return;
+        if (!this.cfg.pierce) { this.dead = true; return; }
       }
     }
   }
@@ -278,7 +307,8 @@ class Bullet {
     ctx.strokeStyle = this.cfg.color;
     ctx.lineWidth = this.cfg.size;
     ctx.beginPath();
-    const tx = this.x - this.vx * 0.012, ty = this.y - this.vy * 0.012;
+    const trail = this.cfg.pierce ? 0.05 : 0.012;
+    const tx = this.x - this.vx * trail, ty = this.y - this.vy * trail;
     ctx.moveTo(Math.round(tx - camX), Math.round(ty - camY));
     ctx.lineTo(Math.round(this.x - camX), Math.round(this.y - camY));
     ctx.stroke();
@@ -406,6 +436,8 @@ class Player extends Ent {
     this.anim = new Anim();
     this.burstLeft = 0;
     this.burstCd = 0;
+    this.stillT = 0;
+    this.hidden = false;
     this.index = index;
     this.char = CHARS[charIndex];
     this.charIndex = charIndex;
@@ -491,14 +523,17 @@ class Player extends Ent {
 
     if (this.invuln > 0) this.invuln -= dt;
 
-    // horizontal movement
+    // horizontal movement. Ice barely grips, so you keep sliding well past
+    // the point where you stopped asking to move.
     const want = (c.right ? 1 : 0) - (c.left ? 1 : 0);
-    const accel = this.onGround ? 1500 : 900;
+    const onIce = this.onGround &&
+      g.terrain.atPx(this.cx, this.y + this.h + 2) === ICE;
+    const accel = onIce ? 300 : this.onGround ? 1500 : 900;
     if (want !== 0) {
       this.vx = approach(this.vx, want * ch.speed, accel * dt);
       this.facing = want;
     } else {
-      this.vx = approach(this.vx, 0, (this.onGround ? 1700 : 500) * dt);
+      this.vx = approach(this.vx, 0, (onIce ? 90 : this.onGround ? 1700 : 500) * dt);
     }
 
     // wall cling: press into a wall while airborne to stick and climb
@@ -509,7 +544,7 @@ class Player extends Ent {
     } else {
       this.climbing = false;
       this.gravity(dt);
-      if (this.vy < 0 && !c.jump) this.vy += GRAVITY * 1.1 * dt; // variable jump height
+      if (this.vy < 0 && !c.jump) this.vy += gravNow() * 1.1 * dt; // variable jump height
     }
 
     // jump, with coyote time and input buffering so it never feels sticky
@@ -525,6 +560,17 @@ class Player extends Ent {
         this.jumpBuf = 0; this.climbing = false;
         sfx('jump');
       }
+    }
+
+    // Camouflage. Hold still and you stop being a target; move or shoot and
+    // you are a person in a bush again.
+    if (ch.camo) {
+      const settled = this.onGround && Math.abs(this.vx) < 10 && want === 0 && !c.fire;
+      this.stillT = settled ? this.stillT + dt : 0;
+      this.hidden = this.stillT > 0.7;
+    } else {
+      this.stillT = 0;
+      this.hidden = false;
     }
 
     this.aim();
@@ -578,6 +624,8 @@ class Player extends Ent {
 
   shoot(w, inBurst) {
     const g = this.g;
+    this.stillT = 0;
+    this.hidden = false;
     if (!inBurst) this.fireCd = w.rate;
     this.muzzle = 0.05;
     this.anim.recoil = w.pellets > 1 || w.lob ? 1 : 0.55;
@@ -703,6 +751,17 @@ class Player extends Ent {
       }
       g.projectiles.push(nade);
       sfx('throwArc');
+    } else if (ch.special === 'pierce') {
+      if (this.special <= 0) { sfx('beep'); return; }
+      this.special--;
+      this.anim.recoil = 1;
+      const mx = this.cx + this.aimX * 12, my = this.cy - 2 + this.aimY * 12;
+      g.bullets.push(new Bullet(g, mx, my, this.aimX, this.aimY, PIERCE_ROUND, 0, this));
+      this.vx -= this.aimX * 240;
+      if (!this.onGround) this.vy -= this.aimY * 120;
+      g.burst(mx, my, 14, '#eaffd0', 220, 0.3, 'spark');
+      g.shake(5);
+      sfx('shotgun');
     } else {
       // C4: first press throws a charge, next press detonates everything live.
       this.liveC4 = this.liveC4.filter(c => !c.dead);
@@ -737,6 +796,7 @@ class Player extends Ent {
   draw(ctx, camX, camY) {
     if (!this.alive) return;
     if (this.invuln > 0 && Math.floor(this.invuln * 18) % 2) return;
+    if (this.hidden) ctx.globalAlpha = 0.42;
     drawChar(ctx, this.char, this.cx - camX, this.y + this.h - camY, {
       facing: this.facing,
       anim: this.anim,
@@ -745,6 +805,16 @@ class Player extends Ent {
       shadowY: groundBelow(this.g.terrain, this.cx, this.y + this.h) - camY,
       tag: this.index === 0 ? '#5ec8ff' : '#ff9a5e'
     });
+    ctx.globalAlpha = 1;
+    if (this.hidden) {
+      // a few leaves settling, so the player can see the camo is working
+      if (Math.random() < 0.12) {
+        this.g.particles.push(new Particle(
+          this.cx + rand(-7, 7), this.y + rand(0, 14),
+          rand(-6, 6), rand(6, 18), rand(0.5, 1.1),
+          pick(['#8fae4a', '#6b7d3a']), 1, 'flake'));
+      }
+    }
   }
 }
 
@@ -1418,6 +1488,7 @@ class Pow extends Ent {
   update(dt) {
     this.animT += dt;
     this.anim.update(dt);
+    if (this.caged) return;          // the cage holds them in place
     this.gravity(dt);
     if (this.freed > 0) {
       this.freed -= dt;
@@ -1425,8 +1496,10 @@ class Pow extends Ent {
       if (this.freed <= 0) this.dead = true;
     } else {
       this.vx = approach(this.vx, 0, 700 * dt);
-      for (const p of this.g.players) {
-        if (p.alive && this.overlaps(p)) this.rescue(p);
+      if (!this.caged) {
+        for (const p of this.g.players) {
+          if (p.alive && this.overlaps(p)) this.rescue(p);
+        }
       }
     }
     this.move(this.g.terrain, dt);
@@ -1568,6 +1641,163 @@ class Chicken extends Ent {
   }
 }
 
+// A hostage cage strung from the canopy. Shoot it open and whoever is inside
+// drops out - they still have to be reached on foot to be freed.
+class Cage extends Ent {
+  constructor(g, x, y, pow) {
+    super(x - 10, y, 20, 18);
+    this.g = g;
+    this.hittable = true;
+    this.hp = 2;
+    this.kind = 'cage';
+    this.pow = pow;
+    this.ropeTop = y - 8 * T;
+    this.sway = rand(0, 6.3);
+    if (pow) { pow.caged = true; pow.hittable = false; }
+  }
+  update(dt) {
+    this.sway += dt;
+    // keep the occupant sitting in the cage until it is opened
+    if (this.pow && !this.pow.dead) {
+      const s = Math.sin(this.sway * 1.3) * 2;
+      this.pow.x = this.cx - this.pow.w / 2 + s;
+      this.pow.y = this.y + this.h - this.pow.h - 1;
+      this.pow.vx = 0; this.pow.vy = 0;
+    }
+  }
+  hurt(dmg, kx, ky, g) {
+    if (this.dead) return;
+    this.hp -= dmg;
+    g.burst(this.cx, this.cy, 6, '#c8b48a', 110, 0.3);
+    if (this.hp > 0) return;
+    this.dead = true;
+    this.open();
+  }
+  open() {
+    const g = this.g;
+    if (this.pow && !this.pow.dead) {
+      this.pow.caged = false;
+      this.pow.hittable = false;      // hostages are never shootable
+      this.pow.vy = -60;
+    }
+    g.burst(this.cx, this.cy, 14, '#d9c9a0', 150, 0.6);
+    g.toast('CAGE OPEN', '#7ee081');
+    sfx('dig');
+  }
+  draw(ctx, camX, camY) {
+    const s = Math.sin(this.sway * 1.3) * 2;
+    const x = Math.round(this.x - camX + s), y = Math.round(this.y - camY);
+    ctx.strokeStyle = '#6b5a3a';       // rope up into the canopy
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x + this.w / 2, y);
+    ctx.lineTo(Math.round(this.cx - camX), Math.round(this.ropeTop - camY));
+    ctx.stroke();
+    ctx.fillStyle = '#7a6a45';         // frame
+    ctx.fillRect(x, y, this.w, 2);
+    ctx.fillRect(x, y + this.h - 2, this.w, 2);
+    ctx.fillStyle = '#93805a';         // bars
+    for (let i = 0; i <= this.w - 3; i += 4) ctx.fillRect(x + i, y + 2, 2, this.h - 4);
+    ctx.fillStyle = '#4a3f28';
+    ctx.fillRect(x + this.w / 2 - 2, y + this.h / 2 - 2, 4, 4);   // padlock
+  }
+}
+
+// Hangs from a ceiling until something shakes it loose.
+class Icicle extends Ent {
+  constructor(g, x, y) {
+    super(x - 3, y, 6, 14);
+    this.g = g;
+    this.hittable = true;
+    this.hp = 1;
+    this.kind = 'icicle';
+    this.falling = false;
+  }
+  scare() { if (Math.random() < 0.7) this.drop(); }
+  drop() { this.falling = true; }
+  update(dt) {
+    if (!this.falling) return;
+    this.gravity(dt);
+    this.move(this.g.terrain, dt);
+    for (const p of this.g.players) {
+      if (p.alive && this.overlaps(p)) p.hurt(1, 0, 0, this.g);
+    }
+    for (const e of this.g.enemies) {
+      if (e !== this && !e.dead && e.hittable && e.kind !== 'icicle' &&
+        this.vy > 120 && this.overlaps(e)) e.hurt(1, 0, 0, this.g);
+    }
+    if (this.onGround || this.hitWall) this.shatter();
+  }
+  hurt() { this.shatter(); }
+  shatter() {
+    if (this.dead) return;
+    this.dead = true;
+    this.g.burst(this.cx, this.cy, 10, '#cfe8ff', 140, 0.5);
+    sfx('dig');
+  }
+  draw(ctx, camX, camY) {
+    const x = Math.round(this.cx - camX), y = Math.round(this.y - camY);
+    ctx.fillStyle = '#bcdcf5';
+    ctx.fillRect(x - 3, y, 6, 5);
+    ctx.fillRect(x - 2, y + 5, 4, 5);
+    ctx.fillRect(x - 1, y + 10, 2, 4);
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.fillRect(x - 2, y + 1, 1, 8);
+  }
+}
+
+// Pressurised oxygen. Puncture it and it becomes a very fast, very stupid
+// rocket before it lets go.
+class O2Tank extends Ent {
+  constructor(g, x, y) {
+    super(x - 6, y - 16, 12, 16);
+    this.g = g;
+    this.hittable = true;
+    this.hp = 1;
+    this.kind = 'o2';
+    this.venting = 0;
+    this.dir = 0;
+  }
+  update(dt) {
+    if (this.venting > 0) {
+      this.venting -= dt;
+      this.vx += Math.cos(this.dir) * 900 * dt;
+      this.vy += Math.sin(this.dir) * 900 * dt;
+      this.g.burst(this.cx - Math.cos(this.dir) * 8, this.cy - Math.sin(this.dir) * 8,
+        3, '#dff1ff', 180, 0.3);
+      if (this.venting <= 0) {
+        this.dead = true;
+        this.g.explode(this.cx, this.cy, 44, 36, null);
+        return;
+      }
+    }
+    this.gravity(dt);
+    const bx = this.vx;
+    this.move(this.g.terrain, dt);
+    if (this.venting > 0 && this.hitWall) this.dir = Math.PI - this.dir;
+    if (this.venting > 0 && this.onGround) this.dir = -this.dir;
+    if (this.venting <= 0) this.vx = approach(this.vx, 0, 400 * dt);
+  }
+  hurt(dmg, kx, ky, g) {
+    if (this.dead || this.venting > 0) return;
+    this.venting = rand(0.9, 1.5);
+    this.dir = rand(-Math.PI, 0);
+    sfx('blow');
+  }
+  draw(ctx, camX, camY) {
+    const x = Math.round(this.x - camX), y = Math.round(this.y - camY);
+    const hot = this.venting > 0 && Math.floor(this.venting * 20) % 2;
+    ctx.fillStyle = hot ? '#eaf6ff' : '#3f7fa8';
+    ctx.fillRect(x, y + 2, 12, 14);
+    ctx.fillStyle = hot ? '#ffffff' : '#5aa0c8';
+    ctx.fillRect(x, y + 4, 12, 3);
+    ctx.fillStyle = '#c8ccd4';
+    ctx.fillRect(x + 4, y, 4, 3);                 // valve
+    ctx.fillStyle = '#1c242c';
+    ctx.fillRect(x + 2, y + 9, 8, 2);
+  }
+}
+
 // Regime propaganda. Shooting it does not destroy it - it just stops being
 // flattering.
 class Poster extends Ent {
@@ -1644,6 +1874,12 @@ const BARKS = {
 function isScoredEnemy(e) {
   return e.kind === 'grunt' || e.kind === 'rusher' || e.kind === 'turret';
 }
+
+// Goes through soldiers and scenery alike, and keeps going.
+const PIERCE_ROUND = {
+  speed: 1500, life: 1.6, carveR: 5, carveDmg: 14,
+  size: 3, color: '#eaffd0', pierce: true, sfx: 'shotgun'
+};
 
 const ENEMY_SHOT = {
   speed: 230, life: 2.2, carveR: 2.4, carveDmg: 1,

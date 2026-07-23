@@ -10,6 +10,12 @@ const STEP = 1 / 60;     // fixed simulation timestep
 const GRAVITY = 900;
 const TERMINAL_VY = 640;
 
+// Scaled per mission. The moon runs at a fraction of this, which changes the
+// feel of every jump, every corpse and every thrown grenade at once.
+let GRAV_SCALE = 1;
+function gravNow() { return GRAVITY * GRAV_SCALE; }
+function terminalNow() { return TERMINAL_VY * (0.45 + 0.55 * GRAV_SCALE); }
+
 function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
 function lerp(a, b, t) { return a + (b - a) * t; }
 function sgn(v) { return v < 0 ? -1 : v > 0 ? 1 : 0; }
