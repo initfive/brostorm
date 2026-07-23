@@ -414,3 +414,24 @@ html, body {
 .mission.active .mkey { background: var(--gold); color: #06080e; }
 .mission b { font-size: 10px; letter-spacing: 0.08em; }
 .mblurb { font-size: 9px; color: #8b93a6; line-height: 1.4; }
+
+/* --------------------------------------------------- random bro rotation --- */
+
+#bro-mode {
+  margin: 10px 0 0;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: #7d8598;
+}
+#bro-mode b { color: var(--gold); }
+
+/* In rotation mode the cards are a roster, not a menu: no selection, no
+   hover affordance, everything shown at equal weight. */
+#screens.random-bros .card {
+  opacity: 0.78;
+  transform: none;
+}
+#screens.random-bros .slot.joined .card {
+  opacity: 0.92;
+}
+#screens.random-bros .card-blurb { color: #8b93a6; }

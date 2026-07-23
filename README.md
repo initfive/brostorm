@@ -30,7 +30,8 @@ player 2 on the right, so you can sit side by side.
 | Special | `G` *(or `H`)* | `/` *(or numpad `1`, right `Ctrl`)* |
 
 Global: `Esc` or `P` pause · `R` restart level · `Shift+R` quit to title ·
-`M` mute · `Enter` confirm · `1` / `2` pick the mission on the title screen.
+`M` mute · `Enter` confirm · `1` / `2` pick the mission · `C` toggle between
+the random bro rotation and manual selection.
 
 **Gamepads work too** — pad 1 is P1, pad 2 is P2. Left stick / d-pad to move,
 `A` jump, `X`/triggers fire, `B`/bumpers special. Plug one in and it takes over
@@ -70,6 +71,18 @@ add its code to the `PREVENT` set just above `KEYMAPS` so the page swallows it.
 
 ## The bros
 
+**You do not choose one.** A bro is dealt to you at random when the mission
+starts, and you are handed a new one every time you respawn and every time you
+free a hostage. Losing a life changes how you play, which is the point — the
+bro you are holding is a constraint to improvise around, not a loadout.
+
+They are dealt from a shuffled bag rather than rolled independently, so you
+cycle the whole roster before anyone repeats, and you are never handed the bro
+you are already holding.
+
+If you would rather pick, press **C** on the title screen to switch to manual
+selection; the character cards become a menu again.
+
 | | Primary | Special | Notes |
 |---|---|---|---|
 | **CPL. RAZOR** | Assault rifle — fast, accurate, unlimited | 4 × frag grenade (bounces, 1.25s fuse) | Quickest on his feet; chews narrow tunnels |
@@ -99,8 +112,10 @@ but will never lift you, so it is a landing tool, not flight.
 - **One hit kills.** Yours, theirs, and your own explosives — grenades and C4
   will kill you and your partner. Mind the blast radius.
 - **Lives are a shared pool** (start with 5). Dying spends one and you respawn
-  next to your partner, or at your furthest checkpoint if they're down too.
-- **Free the hostages** — touching one adds a life to the pool. There are six.
+  next to your partner, or at your furthest checkpoint if they're down too —
+  as a different bro.
+- **Free the hostages** — touching one adds a life to the pool and hands the
+  rescuer a new bro on the spot.
 - **Everything except the world border is destructible.** Dirt is soft, wood is
   softer, stone takes real ordnance. Bedrock never breaks.
 - **Barrels chain-react.** Shoot one near a bunker and watch the floor go.
@@ -159,6 +174,7 @@ refinery, apart from what gets built.
 | Character stats, colours, loadouts | `CHARS` in `js/entities.js` |
 | Enemy behaviour | `Grunt` / `Rusher` / `Turret` / `Barrel` classes, `js/entities.js` |
 | Starting lives | `this.lives = 5` in `Game.start()`, `js/game.js` |
+| Random rotation on/off by default | `this.randomBros` in the `Game` constructor |
 | Blast radii | `explode()` calls in `js/entities.js` |
 | Level layout & enemy placement | `js/level.js` |
 | Mission list | `LEVELS` at the bottom of `js/level.js` |

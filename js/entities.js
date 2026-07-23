@@ -430,6 +430,24 @@ class Player extends Ent {
     this.kills = 0;
   }
 
+  // Swap which bro this player is holding, mid-mission. Weapon state resets to
+  // the new bro's, and any ordnance the previous one left armed is cleared
+  // rather than orphaned - detonating it would kill you on your own respawn.
+  setChar(index, announce) {
+    this.charIndex = index;
+    this.char = CHARS[index];
+    this.special = this.char.specialMax;
+    this.fireCd = 0;
+    this.burstLeft = 0;
+    this.burstCd = 0;
+    for (const c of this.liveC4) c.dead = true;
+    this.liveC4.length = 0;
+    if (announce) {
+      this.g.toast(this.char.name, this.index === 0 ? '#5ec8ff' : '#ff9a5e');
+      sfx('select');
+    }
+  }
+
   spawnAt(x, y) {
     this.x = x - this.w / 2;
     this.y = y - this.h;
@@ -464,6 +482,7 @@ class Player extends Ent {
       this.respawn -= dt;
       if (this.respawn <= 0 && g.lives > 0) {
         g.lives--;
+        if (g.randomBros) this.setChar(g.nextCharFor(this), true);
         const p = g.respawnPoint(this);
         this.spawnAt(p.x, p.y);
       }
@@ -1419,6 +1438,7 @@ class Pow extends Ent {
     this.g.lives++;
     this.g.rescued++;
     this.g.toast('+1 LIFE  ·  HOSTAGE FREED', '#7ee081');
+    if (this.g.randomBros) p.setChar(this.g.nextCharFor(p), true);
     this.g.burst(this.cx, this.cy, 14, '#ffe36b', 130, 0.5, 'spark');
     sfx('rescue');
   }

@@ -43,6 +43,8 @@ class Game {
     ];
     this.ctls = [makeControl(), makeControl()];
     this.levelIndex = 0;
+    this.randomBros = true;     // the roster is a rotation, not a loadout
+    this.charBag = [];
     this.slowCd = 0;
   }
 
@@ -69,8 +71,9 @@ class Game {
     buildLevel(this);
     this.checkpoint = { x: this.spawnX, y: this.spawnY };
 
+    this.charBag.length = 0;
     for (let i = 0; i < 2; i++) {
-      const p = new Player(this, i, this.sel[i].char);
+      const p = new Player(this, i, this.randomBros ? this.nextChar() : this.sel[i].char);
       p.ctl = this.ctls[i];
       p.joined = this.sel[i].joined;
       this.players.push(p);
@@ -86,6 +89,30 @@ class Game {
   }
 
   joinedPlayers() { return this.players.filter(p => p.joined); }
+
+  // Bros are dealt from a shuffled bag rather than picked at random each time,
+  // so you cycle the whole roster before anyone repeats.
+  nextChar() {
+    if (!this.charBag.length) {
+      this.charBag = CHARS.map((_, i) => i);
+      for (let i = this.charBag.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const t = this.charBag[i]; this.charBag[i] = this.charBag[j]; this.charBag[j] = t;
+      }
+    }
+    return this.charBag.pop();
+  }
+
+  // Never hand someone the bro they are already holding.
+  nextCharFor(p) {
+    let idx = this.nextChar();
+    if (p && p.charIndex === idx && this.charBag.length) {
+      const swap = this.charBag.pop();
+      this.charBag.push(idx);
+      idx = swap;
+    }
+    return idx;
+  }
 
   // --- effects ------------------------------------------------------------
 
@@ -296,6 +323,7 @@ class Game {
       const p = this.players[1];
       p.joined = true;
       this.sel[1].joined = true;
+      if (this.randomBros) p.setChar(this.nextCharFor(p));
       const s = this.respawnPoint(p);
       p.spawnAt(s.x, s.y);
       this.toast('PLAYER 2 JOINED', '#ff9a5e');
@@ -562,7 +590,8 @@ const UI = {
       panels: [id('p1-panel'), id('p2-panel')],
       cards: [id('p1-cards'), id('p2-cards')],
       startHint: id('start-hint'),
-      missions: id('missions')
+      missions: id('missions'),
+      broMode: id('bro-mode')
     };
     this.buildCards(0);
     this.buildCards(1);
@@ -667,13 +696,30 @@ const UI = {
     }
     this.renderMissions(game);
 
+    if (keyHit.has('KeyC')) {
+      game.randomBros = !game.randomBros;
+      sfx('select');
+    }
+    const rnd = game.randomBros;
+    this.el.screens.classList.toggle('random-bros', rnd);
+    if (this.el.broMode) {
+      this.el.broMode.innerHTML = rnd
+        ? 'BROS ARE ASSIGNED AT RANDOM — a new one on every respawn and every '
+        + 'hostage freed. <b>C</b> to pick instead.'
+        : 'PICKING YOUR OWN BRO. <b>C</b> for the authentic random rotation.';
+    }
+
     for (let i = 0; i < 2; i++) {
       const c = game.ctls[i], s = game.sel[i];
       if (!s.joined) {
         if (c.fireP || c.jumpP || c.startP) { s.joined = true; sfx('select'); }
       } else {
         joinedCount++;
-        if (!s.locked) {
+        if (rnd) {
+          // nothing to choose - joining is the whole ceremony
+          s.locked = true;
+          anyLocked = true;
+        } else if (!s.locked) {
           if (c.leftP) { s.char = (s.char + CHARS.length - 1) % CHARS.length; sfx('select'); }
           if (c.rightP) { s.char = (s.char + 1) % CHARS.length; sfx('select'); }
           if (c.fireP || c.jumpP) { s.locked = true; sfx('confirm'); }
@@ -683,13 +729,14 @@ const UI = {
           if (c.specialP) { s.locked = false; sfx('select'); }
         }
       }
-      this.renderSlot(i, s);
+      this.renderSlot(i, s, rnd);
     }
 
     const ready = joinedCount > 0 && allLocked && anyLocked;
     this.el.startHint.textContent = ready
       ? 'PRESS ENTER OR FIRE TO DEPLOY  ·  ' + LEVELS[game.levelIndex].name
-      : 'PICK YOUR BRO  ·  LEFT/RIGHT TO BROWSE  ·  FIRE TO LOCK IN';
+      : rnd ? 'PRESS FIRE TO JOIN'
+        : 'PICK YOUR BRO  ·  LEFT/RIGHT TO BROWSE  ·  FIRE TO LOCK IN';
     this.el.startHint.classList.toggle('ready', ready);
 
     if (ready && (keyHit.has('Enter') || game.ctls[0].startP || game.ctls[1].startP ||
@@ -700,16 +747,17 @@ const UI = {
     }
   },
 
-  renderSlot(i, s) {
+  renderSlot(i, s, rnd) {
     const panel = this.el.panels[i];
     panel.classList.toggle('joined', s.joined);
-    panel.classList.toggle('locked', s.locked);
+    panel.classList.toggle('locked', s.locked && !rnd);
     const cards = this.el.cards[i].children;
     for (let k = 0; k < cards.length; k++) {
-      cards[k].classList.toggle('active', s.joined && s.char === k);
+      cards[k].classList.toggle('active', !rnd && s.joined && s.char === k);
     }
     panel.querySelector('.slot-status').textContent =
-      !s.joined ? 'PRESS FIRE TO JOIN' : s.locked ? 'READY' : 'CHOOSING…';
+      !s.joined ? 'PRESS FIRE TO JOIN'
+        : rnd ? 'IN THE ROTATION' : s.locked ? 'READY' : 'CHOOSING…';
   },
 
   // Per-frame in-game HUD.
