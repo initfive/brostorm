@@ -195,14 +195,14 @@ html, body {
 
 #title {
   width: 100%;
-  max-width: 880px;
-  padding: 18px 26px;
+  max-width: 940px;
+  padding: 12px 22px;
   text-align: center;
 }
 
 .logo {
   margin: 0;
-  font-size: clamp(34px, 6vw, 62px);
+  font-size: clamp(26px, 4.6vw, 48px);
   letter-spacing: 0.16em;
   font-weight: 800;
   color: var(--gold);
@@ -210,7 +210,7 @@ html, body {
 }
 
 .subtitle {
-  margin: 2px 0 16px;
+  margin: 2px 0 10px;
   font-size: 10px;
   letter-spacing: 0.28em;
   color: #8b93a6;
@@ -254,12 +254,12 @@ html, body {
 .badge.p2 { background: var(--p2); }
 .slot-status { color: #7d8598; }
 
-.cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 
 .card {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 3px;
-  padding: 8px 6px;
+  padding: 6px 4px;
   background: rgba(0, 0, 0, 0.3);
   opacity: 0.42;
   transition: opacity 0.15s, transform 0.15s, background 0.15s;
@@ -272,16 +272,17 @@ html, body {
 }
 
 .portrait {
-  width: 116px;
-  height: 80px;
+  width: 100%;
+  max-width: 104px;
+  height: 62px;
   image-rendering: pixelated;
   display: block;
   margin: 0 auto 4px;
 }
 
-.card-name { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; }
-.card-tag { font-size: 8px; color: var(--gold); margin: 3px 0 4px; letter-spacing: 0.08em; }
-.card-blurb { font-size: 9px; color: #98a0b2; line-height: 1.45; }
+.card-name { font-size: 9px; font-weight: 700; letter-spacing: 0.04em; line-height: 1.2; }
+.card-tag { font-size: 7px; color: var(--gold); margin: 2px 0 3px; letter-spacing: 0.04em; line-height: 1.25; }
+.card-blurb { font-size: 8px; color: #98a0b2; line-height: 1.35; }
 
 .keys {
   margin-top: 8px;
@@ -292,7 +293,7 @@ html, body {
 .keys b { color: #cfd6e4; }
 
 #start-hint {
-  margin: 14px 0 10px;
+  margin: 10px 0 8px;
   font-size: 11px;
   letter-spacing: 0.16em;
   color: #8b93a6;

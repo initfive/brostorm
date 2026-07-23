@@ -89,11 +89,19 @@ function drawWeaponShape(ctx, type, accent, muzzle) {
       ctx.fillStyle = accent; ctx.fillRect(-1, 3, 6, 3);      // drum magazine
       ctx.fillStyle = metal; ctx.fillRect(-4, -3, 15, 1);
       break;
+    case 'blower':
+      ctx.fillStyle = '#2f6b34'; ctx.fillRect(-6, -4, 9, 8);   // engine housing
+      ctx.fillStyle = '#3f8a44'; ctx.fillRect(-6, -4, 9, 3);
+      ctx.fillStyle = '#43474f'; ctx.fillRect(3, -2, 8, 4);    // tube
+      ctx.fillStyle = '#5a6069'; ctx.fillRect(10, -4, 4, 8);   // flared nozzle
+      ctx.fillStyle = accent; ctx.fillRect(-4, 4, 4, 2);       // pull cord
+      ctx.fillStyle = '#20242a'; ctx.fillRect(-1, -6, 3, 2);   // exhaust
+      break;
     case 'none':
     default:
       return;
   }
-  if (muzzle) {
+  if (muzzle && type !== 'blower') {
     const tip = type === 'launcher' ? 14 : type === 'stapler' ? 11 : 12;
     ctx.fillStyle = '#fff3c4';
     ctx.fillRect(tip, -3, 6, 6);
@@ -116,6 +124,12 @@ function drawHead(ctx, look, hx, hy, w, h, facing) {
   ctx.fillStyle = '#181410';
   ctx.fillRect(eyeX, hy + 4, 2, 2);
 
+  if (look.moustache) {
+    ctx.fillStyle = look.hair;
+    ctx.fillRect(hx + 1, hy + 6, w - 2, 2);
+    ctx.fillRect(hx + (facing > 0 ? w - 2 : 0), hy + 5, 2, 2);
+  }
+
   switch (look.head) {
     case 'band':                                  // headband + short hair
       ctx.fillStyle = look.hair; ctx.fillRect(hx, hy - 1, w, 3);
@@ -131,6 +145,16 @@ function drawHead(ctx, look, hx, hy, w, h, facing) {
       ctx.fillStyle = look.hair; ctx.fillRect(hx, hy - 2, w, 4);
       ctx.fillStyle = shade(look.hair, 30);
       ctx.fillRect(hx + (facing > 0 ? w - 4 : 1), hy - 2, 3, 2);
+      break;
+    case 'straw':                                 // wide straw hat, low brim
+      ctx.fillStyle = '#d9b463';
+      ctx.fillRect(hx - 4, hy - 1, w + 8, 2);                       // brim
+      ctx.fillStyle = '#c39c48';
+      ctx.fillRect(hx - 4, hy + 1, w + 8, 1);
+      ctx.fillStyle = '#e3c47a';
+      ctx.fillRect(hx, hy - 4, w, 3);                               // crown
+      ctx.fillStyle = '#8a6a2c';
+      ctx.fillRect(hx, hy - 2, w, 1);                               // band
       break;
     case 'bun':                                   // grey bun + big sunglasses
       // Thin cap only - leave the lower half of the face bare, or she reads as
@@ -249,6 +273,13 @@ function drawChar(ctx, look, cx, feetY, o) {
   } else if (look.chest === 'sash') {
     ctx.fillStyle = look.accent;
     ctx.fillRect(-B.torsoW / 2 + lean, torsoTop + 2, B.torsoW, 2);
+  } else if (look.chest === 'overalls') {
+    ctx.fillStyle = look.accent;
+    ctx.fillRect(-B.torsoW / 2 + 1 + lean, torsoTop + 3, B.torsoW - 2, B.torsoH - 3);
+    ctx.fillRect(-2 + lean, torsoTop, 2, 4);                  // bib straps
+    ctx.fillRect(2 + lean, torsoTop, 2, 4);
+    ctx.fillStyle = '#d9c27a';
+    ctx.fillRect(-1 + lean, torsoTop + 4, 2, 2);              // brass button
   } else if (look.chest === 'apron') {
     ctx.fillStyle = look.accent;
     ctx.fillRect(-B.torsoW / 2 + 2 + lean, torsoTop + 2, B.torsoW - 4, B.torsoH - 1);

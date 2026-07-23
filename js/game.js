@@ -723,8 +723,9 @@ const UI = {
       if (!p || !p.joined) { panel.classList.add('inactive'); continue; }
       panel.classList.remove('inactive');
       panel.querySelector('.hud-name').textContent = p.char.name;
+      const wep = WEAPONS[p.char.weapon];
       panel.querySelector('.hud-weapon').textContent =
-        p.char.weapon === 'rifle' ? 'RIFLE' : 'SHOTGUN';
+        (wep && wep.label) || p.char.weapon.toUpperCase();
       const ammo = panel.querySelector('.hud-ammo');
       let pips = '';
       for (let k = 0; k < p.char.specialMax; k++) {

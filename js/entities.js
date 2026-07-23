@@ -39,6 +39,17 @@ const CHARS = [
     pants: '#2f3746', boots: '#191d24'
   },
   {
+    id: 'gardener',
+    name: 'THE GARDENER',
+    tag: 'LEAF BLOWER  /  EXPLOSIVE GNOME',
+    blurb: 'Damages nothing. Relocates everything. Cannot dig - bring gnomes.',
+    weapon: 'blower', special: 'gnome', specialMax: 5,
+    speed: 158, jump: 326,
+    head: 'straw', chest: 'overalls', accent: '#3f6fa8', moustache: true,
+    skin: '#dda877', hair: '#5a4632', shirt: '#cfc2a4', shirt2: '#b3a686',
+    pants: '#3f6fa8', boots: '#4a3a28'
+  },
+  {
     id: 'grandma',
     name: 'GRANDMA GRENADIER',
     tag: 'GRENADE LAUNCHER  /  CLUSTER SHELL',
@@ -53,21 +64,32 @@ const CHARS = [
 
 const WEAPONS = {
   rifle: {
+    label: 'RIFLE',
     rate: 0.075, pellets: 1, spread: 0.045, speed: 560, life: 0.95,
     carveR: 3.0, carveDmg: 3, kick: 34, size: 3, color: '#ffe58a', sfx: 'rifle'
   },
   shotgun: {
+    label: 'SHOTGUN',
     rate: 0.5, pellets: 7, spread: 0.20, speed: 470, life: 0.34,
     carveR: 4.2, carveDmg: 5, kick: 175, size: 2, color: '#ffd166', sfx: 'shotgun'
   },
   // Fires in three-round bursts: burstGap between rounds, rate between bursts.
   stapler: {
+    label: 'STAPLER',
     rate: 0.42, burst: 3, burstGap: 0.06, pellets: 1, spread: 0.06,
     speed: 520, life: 0.8, carveR: 2.8, carveDmg: 2, kick: 30,
     size: 3, color: '#cfd8e6', sfx: 'rifle'
   },
+  // Continuous cone of wind. Deals no damage at all - it moves things. Cone is
+  // stored as a cosine so the test per object is a single dot product.
+  blower: {
+    label: 'BLOWER',
+    continuous: true, range: 86, cone: 0.62, power: 2100, selfPush: 620,
+    maxSelfVx: 250, rate: 0, kick: 0, sfx: 'blow'
+  },
   // Lobs an arcing shell instead of firing a bullet.
   launcher: {
+    label: 'LAUNCHER',
     rate: 0.95, lob: true, speed: 300, kick: 120, blastR: 34, blastDmg: 32,
     size: 3, color: '#ffb347', sfx: 'shotgun'
   }
@@ -279,8 +301,9 @@ class Grenade extends Ent {
     this.gravity(dt);
     const bounceX = this.vx, bounceY = this.vy;
     this.move(this.g.terrain, dt);
-    if (this.hitWall) this.vx = -bounceX * 0.45;
-    if (this.onGround) { this.vy = -bounceY * 0.35; this.vx *= 0.72; }
+    const bounce = this.bounce === undefined ? 1 : this.bounce;
+    if (this.hitWall) this.vx = -bounceX * 0.45 * bounce;
+    if (this.onGround) { this.vy = -bounceY * 0.35 * bounce; this.vx *= 0.72; }
 
     // trailing smoke so thrown ordnance is easy to track in a firefight
     this.smokeT -= dt;
@@ -318,6 +341,21 @@ class Grenade extends Ent {
       ctx.fillRect(x - 5, y - 1, 10, 1);
       ctx.fillStyle = '#c8a24a';
       ctx.fillRect(x - 1, y - 6, 3, 2);          // handle
+      return;
+    }
+    if (this.kind === 'gnome') {
+      ctx.fillStyle = hot ? '#fff0c0' : '#c8342a';        // pointed red hat
+      ctx.fillRect(x - 3, y - 8, 6, 2);
+      ctx.fillRect(x - 2, y - 10, 4, 2);
+      ctx.fillStyle = '#e8c49a';                          // face
+      ctx.fillRect(x - 2, y - 6, 4, 3);
+      ctx.fillStyle = '#eef0f2';                          // beard
+      ctx.fillRect(x - 3, y - 4, 6, 3);
+      ctx.fillStyle = hot ? '#ffb347' : '#3f6fa8';        // smock
+      ctx.fillRect(x - 3, y - 1, 6, 3);
+      ctx.fillStyle = '#1a1410';
+      ctx.fillRect(x - 2, y - 6, 1, 1);
+      ctx.fillRect(x + 1, y - 6, 1, 1);
       return;
     }
     ctx.fillStyle = hot ? '#ff5b3a' : (this.splits > 0 ? '#7a4a86' : '#3f5a32');
@@ -477,7 +515,9 @@ class Player extends Ent {
     this.burstCd -= dt;
     if (this.muzzle > 0) this.muzzle -= dt;
     const wcfg = WEAPONS[ch.weapon];
-    if (wcfg.burst) {
+    if (wcfg.continuous) {
+      if (c.fire) this.blow(dt, wcfg);
+    } else if (wcfg.burst) {
       // burst weapons: a trigger pull commits to N rounds
       if (c.fire && this.fireCd <= 0 && this.burstLeft <= 0) {
         this.burstLeft = wcfg.burst;
@@ -552,9 +592,74 @@ class Player extends Ent {
     sfx(w.sfx);
   }
 
+  // Leaf blower. Pushes enemies, ordnance, wildlife, corpses, bullets and your
+  // own partner. Carves no terrain whatsoever, which is the trade.
+  blow(dt, w) {
+    const g = this.g;
+    const ax = this.aimX, ay = this.aimY;
+    const ox = this.cx + ax * 11, oy = this.cy - 2 + ay * 11;
+
+    // Reaction shove. Aiming down slows a fall to a drift but never cancels
+    // gravity outright, so it is a glide rather than free flight.
+    this.vx -= ax * w.selfPush * dt;
+    this.vy -= ay * w.selfPush * dt;
+    this.vx = clamp(this.vx, -w.maxSelfVx, w.maxSelfVx);
+    this.anim.recoil = Math.max(this.anim.recoil, 0.25);
+
+    const gust = (o, px, py, mass) => {
+      const dx = px - ox, dy = py - oy;
+      const d = Math.hypot(dx, dy);
+      if (d > w.range || d < 0.001) return false;
+      if ((dx / d) * ax + (dy / d) * ay < w.cone) return false;
+      const f = w.power * (1 - d / w.range) * dt / mass;
+      o.vx += ax * f;
+      o.vy += ay * f;
+      return true;
+    };
+
+    for (const e of g.enemies) {
+      if (e.dead || e.vx === undefined) continue;
+      if (e.kind === 'pipe' || e.kind === 'poster' || e.kind === 'turret') continue;
+      const mass = e.kind === 'chicken' ? 0.45 : e.kind === 'barrel' ? 0.8
+        : e.kind === 'rusher' ? 1.2 : 1;
+      if (gust(e, e.cx, e.cy, mass) && e.scare) e.scare();
+    }
+    for (const o of g.projectiles) {
+      if (o.dead) continue;
+      gust(o, o.cx, o.cy, o.kind === 'corpse' ? 0.7 : 0.55);
+      if (o.armed) o.armed = false;             // unsticks planted C4
+    }
+    for (const b of g.bullets) {
+      if (!b.dead) gust(b, b.x, b.y, 3.2);      // incoming fire gets deflected
+    }
+    for (const p of g.players) {
+      if (p !== this && p.alive) gust(p, p.cx, p.cy, 1.5);
+    }
+
+    // wind and leaf litter streaming from the nozzle
+    for (let i = 0; i < 2; i++) {
+      const a = Math.atan2(ay, ax) + rand(-0.5, 0.5);
+      const sp = rand(150, 330);
+      g.particles.push(new Particle(ox, oy, Math.cos(a) * sp, Math.sin(a) * sp,
+        rand(0.16, 0.34), pick(['#cfd8c0', '#e2e8d8', '#b9c4aa']), 2, 'spark'));
+    }
+    if (Math.random() < 0.35) {
+      const a = Math.atan2(ay, ax) + rand(-0.45, 0.45);
+      const sp = rand(120, 260);
+      g.particles.push(new Particle(ox, oy, Math.cos(a) * sp, Math.sin(a) * sp,
+        rand(0.5, 1.0), pick(['#6d9440', '#8aae52', '#a8712e', '#c2913a']),
+        randInt(2, 3), 'spark'));
+    }
+
+    this.blowSfx = (this.blowSfx || 0) - dt;
+    if (this.blowSfx <= 0) { this.blowSfx = 0.11; sfx('blow'); }
+    this.muzzle = 0.02;
+  }
+
   useSpecial() {
     const g = this.g, ch = this.char;
-    if (ch.special === 'grenade' || ch.special === 'briefcase' || ch.special === 'cluster') {
+    if (ch.special === 'grenade' || ch.special === 'briefcase' ||
+      ch.special === 'cluster' || ch.special === 'gnome') {
       if (this.special <= 0) { sfx('beep'); return; }
       this.special--;
       this.anim.recoil = 0.7;
@@ -564,6 +669,12 @@ class Player extends Ent {
       if (ch.special === 'briefcase') {
         nade.kind = 'briefcase';
         nade.blastR = 44; nade.blastDmg = 36;
+      } else if (ch.special === 'gnome') {
+        // lands and sits there smiling until it does not
+        nade.kind = 'gnome';
+        nade.fuse = 1.5;
+        nade.blastR = 40; nade.blastDmg = 34;
+        nade.bounce = 0.1;
       } else if (ch.special === 'cluster') {
         // splits into a fan of bomblets at the top of its arc
         nade.kind = 'cluster';

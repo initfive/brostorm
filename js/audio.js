@@ -93,6 +93,9 @@ const SFX = {
   land() {
     noiseHit({ freq: 300, freqTo: 120, dur: 0.06, gain: 0.08, filter: 'lowpass' });
   },
+  blow() {
+    noiseHit({ freq: 900, freqTo: 1400, dur: 0.14, gain: 0.05, q: 0.6, rate: 1.6 });
+  },
   dig() {
     noiseHit({ freq: 500, freqTo: 220, dur: 0.05, gain: 0.06, filter: 'lowpass' });
   },

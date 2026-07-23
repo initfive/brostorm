@@ -75,6 +75,7 @@ add its code to the `PREVENT` set just above `KEYMAPS` so the page swallows it.
 | **CPL. RAZOR** | Assault rifle — fast, accurate, unlimited | 4 × frag grenade (bounces, 1.25s fuse) | Quickest on his feet; chews narrow tunnels |
 | **SGT. RUBBLE** | Combat shotgun — 7 pellets, huge knockback | 3 × remote C4 | Slow and heavy; blows wide holes through walls |
 | **THE OFFICE COMMANDO** | Burst stapler — three rounds per trigger pull | 4 × exploding briefcase | Fastest mover, rolled-up sleeves, no patience |
+| **THE GARDENER** | Leaf blower — a cone of wind, no damage at all | 5 × explosive gnome | Straw hat, moustache, strong opinions about tidiness |
 | **GRANDMA GRENADIER** | Grenade launcher — lobs arcing shells | 2 × cluster shell (splits into 5 bomblets) | Slowest by far, and by far the largest craters |
 
 Both players may pick the same character.
@@ -85,6 +86,13 @@ own — you decide when.
 
 The shotgun's recoil is strong enough to rocket-jump with. Fire downward in
 mid-air to gain height.
+
+**The leaf blower does no damage whatsoever.** It moves things: guards, barrels,
+chickens, corpses, live grenades, incoming bullets and your own partner. Weight
+matters — a chicken goes twice as far as a soldier. It also cannot dig, which is
+the trade: the gnomes are your only way through a wall, so spend them wisely.
+Blowing downward in mid-air turns a fall into a glide (roughly half the descent)
+but will never lift you, so it is a landing tool, not flight.
 
 ## Rules
 
