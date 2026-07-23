@@ -46,40 +46,39 @@
     <!-- title / character select -->
     <section id="title">
       <h1 class="logo">BROSTORM</h1>
-      <p class="subtitle">TWO-PLAYER RUN &amp; GUN · FULLY DESTRUCTIBLE TERRAIN</p>
+      <p class="subtitle">TWO-PLAYER RUN &amp; GUN</p>
 
-      <div class="slots">
-        <div id="p1-panel" class="slot joined">
-          <header><span class="badge p1">PLAYER 1</span><span class="slot-status">CHOOSING…</span></header>
-          <div id="p1-cards" class="cards"></div>
-          <footer class="keys">WASD move &amp; aim · <b>W</b> jump · <b>F</b> fire · <b>G</b> special</footer>
+      <!-- step 1: who is playing -->
+      <div id="stage-players" class="menu-stage">
+        <h2 class="stage-title">BROS</h2>
+        <div class="big-slots">
+          <div id="p1-panel" class="slot">
+            <div class="slot-tag p1">P1</div>
+            <div class="slot-status">PRESS FIRE TO JOIN</div>
+            <div id="p1-cards" class="cards"></div>
+            <div class="slot-keys">WASD &nbsp;·&nbsp; <b>F</b> FIRE &nbsp;·&nbsp; <b>G</b> SPECIAL</div>
+          </div>
+          <div id="p2-panel" class="slot">
+            <div class="slot-tag p2">P2</div>
+            <div class="slot-status">PRESS FIRE TO JOIN</div>
+            <div id="p2-cards" class="cards"></div>
+            <div class="slot-keys">ARROWS &nbsp;·&nbsp; <b>.</b> FIRE &nbsp;·&nbsp; <b>/</b> SPECIAL</div>
+          </div>
         </div>
-
-        <div id="p2-panel" class="slot">
-          <header><span class="badge p2">PLAYER 2</span><span class="slot-status">PRESS FIRE TO JOIN</span></header>
-          <div id="p2-cards" class="cards"></div>
-          <footer class="keys">Arrows move &amp; aim · <b>↑</b> jump · <b>.</b> fire · <b>/</b> special</footer>
-        </div>
+        <p id="bro-mode"></p>
       </div>
 
-      <p id="bro-mode"></p>
-
-      <div class="mission-bar">
-        <span class="mission-label">MISSION</span>
+      <!-- step 2: where -->
+      <div id="stage-operation" class="menu-stage hidden">
+        <h2 class="stage-title">OPERATION</h2>
         <div id="missions"></div>
       </div>
 
-      <p id="start-hint">PICK YOUR BRO · LEFT/RIGHT TO BROWSE · FIRE TO LOCK IN</p>
-
-      <ul class="briefing">
-        <li><b>You do not choose your bro.</b> One is assigned at random, and you are handed a new one every time you respawn or free a hostage.</li>
-        <li><b>Everything breaks.</b> Shoot, blast or dig your way through dirt, wood and stone.</li>
-        <li><b>Press into a wall in mid-air</b> to cling, then hold up to climb it.</li>
-        <li><b>Free the hostages</b> — each one you touch adds a life to the shared pool.</li>
-        <li><b>One hit kills</b> — yours, theirs, and your own explosives. Mind the blast radius.</li>
-        <li>Reach the <b>extraction chopper</b> at the far east end of the valley. Both bros must be aboard.</li>
-        <li>Gamepads work too: pad 1 → P1, pad 2 → P2. <b>Esc</b> pause · <b>R</b> restart · <b>M</b> mute.</li>
-      </ul>
+      <p id="start-hint">PRESS FIRE TO JOIN</p>
+      <p class="footnote">
+        <b>ESC</b> PAUSE &nbsp;·&nbsp; <b>R</b> RESTART &nbsp;·&nbsp; <b>M</b> MUTE
+        &nbsp;·&nbsp; GAMEPADS SUPPORTED
+      </p>
     </section>
 
     <!-- pause -->

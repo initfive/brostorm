@@ -44,6 +44,7 @@ class Game {
     this.ctls = [makeControl(), makeControl()];
     this.levelIndex = 0;
     this.randomBros = true;     // the roster is a rotation, not a loadout
+    this.menuStage = 'players';
     this.charBag = [];
     this.slowCd = 0;
   }
@@ -591,7 +592,9 @@ const UI = {
       cards: [id('p1-cards'), id('p2-cards')],
       startHint: id('start-hint'),
       missions: id('missions'),
-      broMode: id('bro-mode')
+      broMode: id('bro-mode'),
+      stagePlayers: id('stage-players'),
+      stageOperation: id('stage-operation')
     };
     this.buildCards(0);
     this.buildCards(1);
@@ -659,6 +662,7 @@ const UI = {
 
   setScreen(name) {
     this.screen = name;
+    if (name === 'title' && this.game) this.game.menuStage = 'players';
     for (const k of ['title', 'paused', 'win', 'over']) {
       this.el[k].classList.toggle('hidden', name !== k);
     }
@@ -684,63 +688,107 @@ const UI = {
     }
   },
 
-  // Title screen: join, pick a character, lock in.
+  // Title screen. Two steps: who is playing, then where they are going.
+  // Input is handled first and the screen is drawn from the resulting state,
+  // so nothing on screen is ever a frame behind what the menu actually is.
   updateTitle(game) {
-    let anyLocked = false, allLocked = true, joinedCount = 0;
-
-    for (let i = 0; i < LEVELS.length && i < 9; i++) {
-      if (keyHit.has('Digit' + (i + 1)) || keyHit.has('Numpad' + (i + 1))) {
-        game.levelIndex = i;
-        sfx('select');
-      }
-    }
-    this.renderMissions(game);
-
     if (keyHit.has('KeyC')) {
       game.randomBros = !game.randomBros;
       sfx('select');
     }
     const rnd = game.randomBros;
-    this.el.screens.classList.toggle('random-bros', rnd);
-    if (this.el.broMode) {
-      this.el.broMode.innerHTML = rnd
-        ? 'BROS ARE ASSIGNED AT RANDOM — a new one on every respawn and every '
-        + 'hostage freed. <b>C</b> to pick instead.'
-        : 'PICKING YOUR OWN BRO. <b>C</b> for the authentic random rotation.';
+
+    if (game.menuStage === 'players') this.stepPlayers(game, rnd);
+    else this.stepOperation(game);
+
+    // --- render from final state ---
+    const onPlayers = game.menuStage === 'players';
+    this.el.screens.classList.toggle('pick-bros', !rnd);
+    this.el.stagePlayers.classList.toggle('hidden', !onPlayers);
+    this.el.stageOperation.classList.toggle('hidden', onPlayers);
+    this.el.broMode.innerHTML = rnd
+      ? 'BROS ASSIGNED AT RANDOM &nbsp;·&nbsp; <b>C</b> TO PICK'
+      : 'PICKING MANUALLY &nbsp;·&nbsp; <b>C</b> FOR RANDOM';
+
+    let hint, ready;
+    if (onPlayers) {
+      let joined = 0, allLocked = true;
+      for (let i = 0; i < 2; i++) {
+        this.renderSlot(i, game.sel[i], rnd);
+        if (game.sel[i].joined) { joined++; if (!game.sel[i].locked) allLocked = false; }
+      }
+      ready = joined > 0 && allLocked;
+      hint = ready ? 'PRESS FIRE TO CONTINUE'
+        : joined > 0 ? 'LOCK IN YOUR BRO' : 'PRESS FIRE TO JOIN';
+    } else {
+      this.renderMissions(game);
+      ready = true;
+      hint = 'FIRE TO DEPLOY  ·  LEFT/RIGHT TO CHOOSE';
     }
+    this.el.startHint.textContent = hint;
+    this.el.startHint.classList.toggle('ready', ready);
+  },
+
+  stepPlayers(game, rnd) {
+    // Any press that joins or locks in is consumed by that action. Without
+    // this, one tap of fire both confirms your bro and skips the whole step.
+    let consumed = false;
 
     for (let i = 0; i < 2; i++) {
       const c = game.ctls[i], s = game.sel[i];
       if (!s.joined) {
-        if (c.fireP || c.jumpP || c.startP) { s.joined = true; sfx('select'); }
-      } else {
-        joinedCount++;
-        if (rnd) {
-          // nothing to choose - joining is the whole ceremony
-          s.locked = true;
-          anyLocked = true;
-        } else if (!s.locked) {
-          if (c.leftP) { s.char = (s.char + CHARS.length - 1) % CHARS.length; sfx('select'); }
-          if (c.rightP) { s.char = (s.char + 1) % CHARS.length; sfx('select'); }
-          if (c.fireP || c.jumpP) { s.locked = true; sfx('confirm'); }
-          allLocked = false;
-        } else {
-          anyLocked = true;
-          if (c.specialP) { s.locked = false; sfx('select'); }
+        if (c.fireP || c.jumpP || c.startP) {
+          s.joined = true;
+          s.locked = rnd;
+          consumed = true;
+          sfx('confirm');
         }
+      } else if (rnd) {
+        s.locked = true;
+      } else if (!s.locked) {
+        if (c.leftP) { s.char = (s.char + CHARS.length - 1) % CHARS.length; sfx('select'); }
+        if (c.rightP) { s.char = (s.char + 1) % CHARS.length; sfx('select'); }
+        if (c.fireP || c.jumpP) { s.locked = true; consumed = true; sfx('confirm'); }
+      } else if (c.specialP) {
+        s.locked = false;
       }
-      this.renderSlot(i, s, rnd);
     }
 
-    const ready = joinedCount > 0 && allLocked && anyLocked;
-    this.el.startHint.textContent = ready
-      ? 'PRESS ENTER OR FIRE TO DEPLOY  ·  ' + LEVELS[game.levelIndex].name
-      : rnd ? 'PRESS FIRE TO JOIN'
-        : 'PICK YOUR BRO  ·  LEFT/RIGHT TO BROWSE  ·  FIRE TO LOCK IN';
-    this.el.startHint.classList.toggle('ready', ready);
+    let joined = 0, allLocked = true;
+    for (const s of game.sel) {
+      if (s.joined) { joined++; if (!s.locked) allLocked = false; }
+    }
+    // The keypress that joins must not also advance the menu.
+    if (joined > 0 && allLocked && !consumed &&
+      (keyHit.has('Enter') || game.ctls[0].fireP || game.ctls[1].fireP ||
+        game.ctls[0].startP || game.ctls[1].startP)) {
+      game.menuStage = 'operation';
+      sfx('confirm');
+    }
+  },
 
-    if (ready && (keyHit.has('Enter') || game.ctls[0].startP || game.ctls[1].startP ||
-      game.ctls[0].fireP || game.ctls[1].fireP)) {
+  stepOperation(game) {
+    const n = LEVELS.length;
+    for (let i = 0; i < 2; i++) {
+      const c = game.ctls[i];
+      if (c.leftP) { game.levelIndex = (game.levelIndex + n - 1) % n; sfx('select'); }
+      if (c.rightP) { game.levelIndex = (game.levelIndex + 1) % n; sfx('select'); }
+    }
+    for (let i = 0; i < n && i < 9; i++) {
+      if (keyHit.has('Digit' + (i + 1)) || keyHit.has('Numpad' + (i + 1))) {
+        game.levelIndex = i;
+        sfx('select');
+      }
+    }
+
+    if (keyHit.has('Escape') || game.ctls[0].specialP || game.ctls[1].specialP) {
+      game.menuStage = 'players';
+      sfx('select');
+      return;
+    }
+    if (keyHit.has('Enter') || game.ctls[0].fireP || game.ctls[1].fireP ||
+      game.ctls[0].startP || game.ctls[1].startP ||
+      game.ctls[0].jumpP || game.ctls[1].jumpP) {
       audioResume();
       sfx('confirm');
       game.start();
@@ -757,7 +805,7 @@ const UI = {
     }
     panel.querySelector('.slot-status').textContent =
       !s.joined ? 'PRESS FIRE TO JOIN'
-        : rnd ? 'IN THE ROTATION' : s.locked ? 'READY' : 'CHOOSING…';
+        : rnd ? 'READY' : s.locked ? 'READY' : 'CHOOSING…';
   },
 
   // Per-frame in-game HUD.

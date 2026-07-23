@@ -216,107 +216,44 @@ html, body {
   color: #8b93a6;
 }
 
-.slots {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-}
 
-.slot {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(12, 16, 26, 0.75);
-  border-radius: 4px;
-  padding: 9px;
-  opacity: 0.5;
-  transition: opacity 0.18s, border-color 0.18s, box-shadow 0.18s;
-}
-.slot.joined { opacity: 1; }
-#p1-panel.joined { border-color: rgba(94, 200, 255, 0.5); }
-#p2-panel.joined { border-color: rgba(255, 154, 94, 0.5); }
-#p1-panel.locked { box-shadow: 0 0 0 1px var(--p1), 0 0 22px rgba(94, 200, 255, 0.22); }
-#p2-panel.locked { box-shadow: 0 0 0 1px var(--p2), 0 0 22px rgba(255, 154, 94, 0.22); }
 
-.slot header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-  font-size: 9px;
-  letter-spacing: 0.14em;
-}
-.badge {
-  padding: 2px 6px;
-  border-radius: 2px;
-  font-weight: 700;
-  color: #06080e;
-}
-.badge.p1 { background: var(--p1); }
-.badge.p2 { background: var(--p2); }
-.slot-status { color: #7d8598; }
 
-.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 
-.card {
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 3px;
-  padding: 6px 4px;
-  background: rgba(0, 0, 0, 0.3);
-  opacity: 0.42;
-  transition: opacity 0.15s, transform 0.15s, background 0.15s;
-}
-.card.active {
-  opacity: 1;
-  background: rgba(255, 209, 102, 0.09);
-  border-color: rgba(255, 209, 102, 0.45);
-  transform: translateY(-2px);
-}
 
-.portrait {
-  width: 100%;
-  max-width: 104px;
-  height: 62px;
-  image-rendering: pixelated;
-  display: block;
-  margin: 0 auto 4px;
-}
 
-.card-name { font-size: 9px; font-weight: 700; letter-spacing: 0.04em; line-height: 1.2; }
-.card-tag { font-size: 7px; color: var(--gold); margin: 2px 0 3px; letter-spacing: 0.04em; line-height: 1.25; }
-.card-blurb { font-size: 8px; color: #98a0b2; line-height: 1.35; }
 
-.keys {
-  margin-top: 8px;
-  font-size: 9px;
-  color: #798195;
-  letter-spacing: 0.04em;
-}
-.keys b { color: #cfd6e4; }
 
-#start-hint {
-  margin: 10px 0 8px;
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  color: #8b93a6;
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #start-hint.ready {
   color: var(--good);
   animation: pulse 1s ease-in-out infinite;
 }
 @keyframes pulse { 50% { opacity: 0.4; } }
 
-.briefing {
-  list-style: none;
-  padding: 0;
-  margin: 0 auto;
-  max-width: 660px;
-  text-align: left;
-  font-size: 10px;
-  line-height: 1.7;
-  color: #8b93a6;
-  columns: 2;
-  column-gap: 22px;
-}
-.briefing b { color: #dbe2ee; }
+
+
 
 .panel-screen { text-align: center; padding: 20px; }
 .panel-screen h2 {
@@ -353,77 +290,26 @@ html, body {
 
 /* ------------------------------------------------------- mission select --- */
 
-.mission-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 14px auto 0;
-  max-width: 720px;
-}
 
-.mission-label {
-  font-size: 9px;
-  letter-spacing: 0.2em;
-  color: #6f7789;
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-  transform: rotate(180deg);
-}
 
-#missions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  flex: 1;
-}
 
-.mission {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  grid-template-rows: auto auto;
-  column-gap: 8px;
-  align-items: center;
-  text-align: left;
-  padding: 7px 9px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 3px;
-  background: rgba(0, 0, 0, 0.3);
-  opacity: 0.45;
-  transition: opacity 0.15s, border-color 0.15s, background 0.15s;
-}
 
-.mission.active {
-  opacity: 1;
-  border-color: rgba(255, 209, 102, 0.5);
-  background: rgba(255, 209, 102, 0.08);
-}
 
-.mkey {
-  grid-row: 1 / 3;
-  width: 20px;
-  height: 20px;
-  display: grid;
-  place-items: center;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.12);
-  font-size: 10px;
-  font-weight: 700;
-  color: #dbe2ee;
-}
 
-.mission.active .mkey { background: var(--gold); color: #06080e; }
-.mission b { font-size: 10px; letter-spacing: 0.08em; }
-.mblurb { font-size: 9px; color: #8b93a6; line-height: 1.4; }
+
+
+
+
+
+
+
+
+
 
 /* --------------------------------------------------- random bro rotation --- */
 
-#bro-mode {
-  margin: 10px 0 0;
-  font-size: 9px;
-  letter-spacing: 0.1em;
-  color: #7d8598;
-}
-#bro-mode b { color: var(--gold); }
+
+
 
 /* In rotation mode the cards are a roster, not a menu: no selection, no
    hover affordance, everything shown at equal weight. */
@@ -435,3 +321,236 @@ html, body {
   opacity: 0.92;
 }
 #screens.random-bros .card-blurb { color: #8b93a6; }
+
+/* ==========================================================================
+   MAIN MENU
+   Two steps, each one big and quiet: who is playing, then where they go.
+   ========================================================================== */
+
+#title {
+  width: 100%;
+  max-width: 900px;
+  padding: 24px;
+  text-align: center;
+}
+
+.logo {
+  margin: 0;
+  font-size: clamp(46px, 9vw, 104px);
+  line-height: 0.92;
+  letter-spacing: 0.14em;
+  font-weight: 800;
+  color: var(--gold);
+  text-shadow:
+    0 4px 0 #92501d,
+    0 8px 0 #5e3411,
+    0 16px 42px rgba(255, 145, 40, 0.42);
+}
+
+.subtitle {
+  margin: 12px 0 30px;
+  font-size: 11px;
+  letter-spacing: 0.52em;
+  color: #7d8598;
+}
+
+.stage-title {
+  margin: 0 0 14px;
+  font-size: 12px;
+  letter-spacing: 0.42em;
+  font-weight: 700;
+  color: #6f7789;
+}
+
+.menu-stage { animation: stagein 0.22s ease-out; }
+@keyframes stagein {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ------------------------------------------------------------- players --- */
+
+.big-slots {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.slot {
+  position: relative;
+  min-height: 150px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 26px 18px 20px;
+  border: 2px solid rgba(255, 255, 255, 0.09);
+  border-radius: 6px;
+  background: rgba(12, 16, 26, 0.6);
+  transition: border-color 0.18s, background 0.18s, box-shadow 0.18s;
+}
+
+.slot-tag {
+  position: absolute;
+  top: -12px;
+  left: 18px;
+  padding: 3px 12px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: #06080e;
+  background: #3a4150;
+}
+.slot-tag.p1 { background: var(--p1); }
+.slot-tag.p2 { background: var(--p2); }
+
+.slot-status {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: #6f7789;
+}
+
+#p1-panel.joined { border-color: var(--p1); background: rgba(94, 200, 255, 0.07); }
+#p2-panel.joined { border-color: var(--p2); background: rgba(255, 154, 94, 0.07); }
+#p1-panel.joined { box-shadow: 0 0 34px rgba(94, 200, 255, 0.16); }
+#p2-panel.joined { box-shadow: 0 0 34px rgba(255, 154, 94, 0.16); }
+#p1-panel.joined .slot-status { color: var(--p1); }
+#p2-panel.joined .slot-status { color: var(--p2); }
+
+.slot-keys {
+  font-size: 10px;
+  letter-spacing: 0.13em;
+  color: #5f6675;
+}
+.slot-keys b { color: #aeb6c6; }
+
+#bro-mode {
+  margin: 22px 0 0;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: #6f7789;
+}
+#bro-mode b { color: var(--gold); }
+
+/* character cards, only shown when picking manually */
+.cards { display: none; }
+#screens.pick-bros .cards {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 5px;
+  width: 100%;
+}
+#screens.pick-bros .slot { min-height: 0; }
+.card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  padding: 4px 2px;
+  background: rgba(0, 0, 0, 0.32);
+  opacity: 0.38;
+  transition: opacity 0.14s, background 0.14s;
+}
+.card.active {
+  opacity: 1;
+  background: rgba(255, 209, 102, 0.1);
+  border-color: rgba(255, 209, 102, 0.5);
+}
+.portrait { width: 100%; height: 40px; image-rendering: pixelated; display: block; }
+.card-name { font-size: 7px; font-weight: 700; line-height: 1.2; margin-top: 2px; }
+.card-tag, .card-blurb { display: none; }
+
+/* ----------------------------------------------------------- operation --- */
+
+#missions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.mission {
+  position: relative;
+  min-height: 132px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 22px;
+  text-align: left;
+  border: 2px solid rgba(255, 255, 255, 0.09);
+  border-radius: 6px;
+  background: rgba(12, 16, 26, 0.6);
+  opacity: 0.5;
+  transition: opacity 0.16s, border-color 0.16s, background 0.16s, box-shadow 0.16s;
+}
+
+.mission.active {
+  opacity: 1;
+  border-color: var(--gold);
+  background: rgba(255, 209, 102, 0.08);
+  box-shadow: 0 0 34px rgba(255, 209, 102, 0.16);
+}
+
+.mkey {
+  position: absolute;
+  top: -12px;
+  left: 20px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 3px;
+  background: #3a4150;
+  font-size: 12px;
+  font-weight: 800;
+  color: #06080e;
+}
+.mission.active .mkey { background: var(--gold); }
+
+.mission b {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  line-height: 1.15;
+}
+.mblurb {
+  font-size: 11px;
+  line-height: 1.55;
+  color: #8b93a6;
+}
+
+/* --------------------------------------------------------------- hints --- */
+
+#start-hint {
+  margin: 30px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  color: #7d8598;
+}
+#start-hint.ready {
+  color: var(--good);
+  animation: pulse 1.05s ease-in-out infinite;
+}
+
+.footnote {
+  margin: 14px 0 0;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  color: #4f5665;
+}
+.footnote b { color: #8a93a5; }
+
+@media (max-width: 760px) {
+  .big-slots, #missions { grid-template-columns: 1fr; }
+}
+
+/* Locked in while picking manually: the slot commits to gold. */
+#screens.pick-bros .slot.locked {
+  border-color: var(--gold);
+  background: rgba(255, 209, 102, 0.08);
+  box-shadow: 0 0 34px rgba(255, 209, 102, 0.16);
+}
+#screens.pick-bros .slot.locked .slot-status { color: var(--gold); }

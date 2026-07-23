@@ -30,8 +30,11 @@ player 2 on the right, so you can sit side by side.
 | Special | `G` *(or `H`)* | `/` *(or numpad `1`, right `Ctrl`)* |
 
 Global: `Esc` or `P` pause · `R` restart level · `Shift+R` quit to title ·
-`M` mute · `Enter` confirm · `1` / `2` pick the mission · `C` toggle between
-the random bro rotation and manual selection.
+`M` mute · `C` toggle between the random bro rotation and manual selection.
+
+The menu runs in two steps. **Bros** — each player presses their own fire key
+to join. **Operation** — left/right or `1`/`2` to choose, fire to deploy, `Esc`
+to step back.
 
 **Gamepads work too** — pad 1 is P1, pad 2 is P2. Left stick / d-pad to move,
 `A` jump, `X`/triggers fire, `B`/bumpers special. Plug one in and it takes over
