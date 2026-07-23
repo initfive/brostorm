@@ -49,7 +49,6 @@ function hash2(x, y) {
 // Adjustable from the title screen and remembered between sessions.
 
 const SETTINGS = [
-  { key: 'music', label: 'MUSIC', get: () => getMusicVolume(), set: v => setMusicVolume(v) },
   { key: 'sfx', label: 'SOUND', get: () => getSfxVolume(), set: v => setSfxVolume(v) }
 ];
 

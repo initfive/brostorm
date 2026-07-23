@@ -87,7 +87,6 @@ class Game {
     this.camY = clamp(this.spawnY - VIEW_H * 0.6, 0, LEVEL_H * T - VIEW_H);
     this.state = 'play';
     this.toast(LEVEL_NAME, '#ffd166');
-    musicPlay(THEME.id);
     UI.setScreen(null);
   }
 
@@ -755,10 +754,7 @@ const UI = {
 
   setScreen(name) {
     this.screen = name;
-    if (name === 'title') {
-      if (this.game) this.game.menuStage = 'players';
-      musicPlay('menu');
-    }
+    if (name === 'title' && this.game) this.game.menuStage = 'players';
     for (const k of ['title', 'paused', 'win', 'over']) {
       this.el[k].classList.toggle('hidden', name !== k);
     }
@@ -998,17 +994,13 @@ function boot() {
   fitCanvas();
   window.addEventListener('resize', fitCanvas);
 
-  const unlock = () => { audioInit(); loadSettings(); audioResume(); musicPlay('menu'); };
+  const unlock = () => { audioInit(); loadSettings(); audioResume(); };
   window.addEventListener('keydown', unlock, { once: true });
   window.addEventListener('pointerdown', unlock, { once: true });
   window.addEventListener('keydown', e => {
     if (e.code === 'KeyM') {
       const muted = audioToggleMute();
       document.getElementById('mute-flag').textContent = muted ? 'SOUND OFF (M)' : 'SOUND ON (M)';
-    }
-    if (e.code === 'KeyN') {
-      const on = musicSetEnabled(!musicOn);
-      game.toast(on ? 'MUSIC ON' : 'MUSIC OFF', '#ffd166');
     }
     if (e.code === 'KeyR' && game.state !== 'title') {
       if (e.shiftKey) { game.state = 'title'; UI.setScreen('title'); }
