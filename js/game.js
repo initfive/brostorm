@@ -651,12 +651,14 @@ const UI = {
       stagePlayers: id('stage-players'),
       stageOperation: id('stage-operation'),
       stageSettings: id('stage-settings'),
-      settingsRows: id('settings-rows')
+      settingsRows: id('settings-rows'),
+      ctrlSlots: id('ctrl-slots')
     };
     this.buildCards(0);
     this.buildCards(1);
     this.buildMissions();
     this.buildSettings();
+    this.buildControllers();
     this.setScreen('title');
   },
 
@@ -741,6 +743,73 @@ const UI = {
       }
       rows[i].querySelector('.setting-val').textContent = Math.round(v * 100) + '%';
     }
+    this.renderControllers();
+  },
+
+  // A live tester for each player slot. Gamepad index maps to player slot, so
+  // the first pad you press is P1 and the second is P2 - the same rule the
+  // in-game input uses. Buttons light up as you press them, which is the
+  // quickest way to confirm a freshly paired Bluetooth pad is actually seen.
+  buildControllers() {
+    const wrap = this.el.ctrlSlots;
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    this._ctrl = [];
+    const DIRS = [['up', '↑'], ['left', '←'], ['down', '↓'], ['right', '→']];
+    const BTNS = [['jump', 'JUMP'], ['fire', 'FIRE'], ['special', 'SPECIAL']];
+    for (let i = 0; i < 2; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'ctrl-slot';
+
+      const top = document.createElement('div');
+      top.className = 'ctrl-top';
+      const tag = document.createElement('span');
+      tag.className = 'ctrl-tag ' + (i === 0 ? 'p1' : 'p2');
+      tag.textContent = 'P' + (i + 1);
+      const name = document.createElement('span');
+      name.className = 'ctrl-name';
+      top.append(tag, name);
+
+      const pad = document.createElement('div');
+      pad.className = 'ctrl-pad';
+      const dirs = document.createElement('div');
+      dirs.className = 'ctrl-dirs';
+      const btns = document.createElement('div');
+      btns.className = 'ctrl-btns';
+      const refs = { name: name, keys: {} };
+      for (const [k, sym] of DIRS) {
+        const e = document.createElement('span');
+        e.className = 'ctrl-key ctrl-dir';
+        e.textContent = sym;
+        dirs.appendChild(e);
+        refs.keys[k] = e;
+      }
+      for (const [k, label] of BTNS) {
+        const e = document.createElement('span');
+        e.className = 'ctrl-key ctrl-btn';
+        e.textContent = label;
+        btns.appendChild(e);
+        refs.keys[k] = e;
+      }
+      pad.append(dirs, btns);
+      slot.append(top, pad);
+      wrap.appendChild(slot);
+      this._ctrl.push({ slot: slot, refs: refs });
+    }
+  },
+
+  renderControllers() {
+    if (!this._ctrl) return;
+    const pads = navigator.getGamepads ? navigator.getGamepads() : null;
+    for (let i = 0; i < this._ctrl.length; i++) {
+      const { slot, refs } = this._ctrl[i];
+      const gp = pads && pads[i];
+      const on = gp && gp.connected;
+      slot.classList.toggle('connected', !!on);
+      refs.name.textContent = on ? shortenPad(gp.id) : 'NOT CONNECTED';
+      const pad = padRaw(i);
+      for (const k in refs.keys) refs.keys[k].classList.toggle('lit', !!(pad && pad[k]));
+    }
   },
 
   renderMissions(game) {
@@ -807,7 +876,7 @@ const UI = {
     let hint, ready;
     if (stage === 'settings') {
       this.renderSettings(game);
-      hint = 'LEFT/RIGHT ADJUST  ·  UP/DOWN SELECT  ·  ESC BACK';
+      hint = 'LEFT/RIGHT ADJUST  ·  ESC / START BACK  ·  TEST YOUR PAD BELOW';
       ready = true;
     } else if (stage === 'players') {
       let joined = 0, allLocked = true;
@@ -837,8 +906,10 @@ const UI = {
       if (c.leftP) { row.set(row.get() - 0.1); saveSettings(); sfx('select'); }
       if (c.rightP) { row.set(row.get() + 0.1); saveSettings(); sfx('beep'); }
     }
+    // Back on Start rather than Fire - Fire is one of the buttons you test
+    // below, so exiting on it would fight the tester.
     if (keyHit.has('Escape') || keyHit.has('KeyS') ||
-      game.ctls[0].fireP || game.ctls[1].fireP) {
+      game.ctls[0].startP || game.ctls[1].startP) {
       game.menuStage = 'players';
       sfx('select');
     }
@@ -959,6 +1030,13 @@ const UI = {
     this.el.toasts.innerHTML = html;
   }
 };
+
+// Gamepad ids carry a noisy vendor/product tail - "Xbox Wireless Controller
+// (STANDARD GAMEPAD Vendor: 045e Product: 02fd)". Keep just the human name.
+function shortenPad(id) {
+  const name = (id || '').replace(/\s*\([^)]*\)\s*/g, '').trim();
+  return (name || 'GAMEPAD').toUpperCase();
+}
 
 function statRows(rows) {
   return rows.map(r => '<div class="stat"><span>' + r[0] + '</span><b>' + r[1] + '</b></div>').join('');
