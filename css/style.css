@@ -554,3 +554,49 @@ html, body {
   box-shadow: 0 0 34px rgba(255, 209, 102, 0.16);
 }
 #screens.pick-bros .slot.locked .slot-status { color: var(--gold); }
+
+/* ------------------------------------------------------------ settings --- */
+
+#settings-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.setting {
+  display: grid;
+  grid-template-columns: 96px 1fr 54px;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  border: 2px solid rgba(255, 255, 255, 0.09);
+  border-radius: 6px;
+  background: rgba(12, 16, 26, 0.6);
+  opacity: 0.55;
+  transition: opacity 0.15s, border-color 0.15s, background 0.15s;
+}
+.setting.active {
+  opacity: 1;
+  border-color: var(--gold);
+  background: rgba(255, 209, 102, 0.08);
+}
+.setting b { font-size: 13px; letter-spacing: 0.16em; text-align: left; }
+
+.setting-bar { display: flex; gap: 4px; }
+.setting-bar i {
+  flex: 1;
+  height: 14px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
+}
+.setting-bar i.on { background: var(--gold); }
+
+.setting-val {
+  font-size: 12px;
+  font-weight: 700;
+  color: #8b93a6;
+  text-align: right;
+}
+.setting.active .setting-val { color: var(--gold); }

@@ -4,8 +4,10 @@
 
 let actx = null;
 let masterGain = null;
+let sfxGain = null;
 let noiseBuf = null;
 let audioMuted = false;
+let sfxVolume = 0.5;
 
 function audioInit() {
   if (actx) return;
@@ -13,8 +15,13 @@ function audioInit() {
   if (!AC) return;
   actx = new AC();
   masterGain = actx.createGain();
-  masterGain.gain.value = 0.5;
+  masterGain.gain.value = audioMuted ? 0 : 1;
   masterGain.connect(actx.destination);
+
+  // effects and music get their own bus so the mix can be adjusted separately
+  sfxGain = actx.createGain();
+  sfxGain.gain.value = sfxVolume;
+  sfxGain.connect(masterGain);
 
   const len = Math.floor(actx.sampleRate * 1.0);
   noiseBuf = actx.createBuffer(1, len, actx.sampleRate);
@@ -28,12 +35,19 @@ function audioResume() {
 
 function audioToggleMute() {
   audioMuted = !audioMuted;
-  if (masterGain) masterGain.gain.value = audioMuted ? 0 : 0.5;
+  if (masterGain) masterGain.gain.value = audioMuted ? 0 : 1;
   return audioMuted;
 }
 
+function setSfxVolume(v) {
+  sfxVolume = clamp(v, 0, 1);
+  if (sfxGain) sfxGain.gain.value = sfxVolume;
+  return sfxVolume;
+}
+function getSfxVolume() { return sfxVolume; }
+
 function noiseHit(o) {
-  if (!actx || audioMuted) return;
+  if (!actx) return;
   const t = actx.currentTime;
   const src = actx.createBufferSource();
   src.buffer = noiseBuf;
@@ -50,12 +64,12 @@ function noiseHit(o) {
   g.gain.exponentialRampToValueAtTime(o.gain, t + 0.005);
   g.gain.exponentialRampToValueAtTime(0.0001, t + o.dur);
 
-  src.connect(filt); filt.connect(g); g.connect(masterGain);
+  src.connect(filt); filt.connect(g); g.connect(sfxGain || masterGain);
   src.start(t); src.stop(t + o.dur + 0.02);
 }
 
 function tone(o) {
-  if (!actx || audioMuted) return;
+  if (!actx) return;
   const t = actx.currentTime + (o.delay || 0);
   const osc = actx.createOscillator();
   osc.type = o.type || 'square';
@@ -67,7 +81,7 @@ function tone(o) {
   g.gain.exponentialRampToValueAtTime(o.gain, t + 0.006);
   g.gain.exponentialRampToValueAtTime(0.0001, t + o.dur);
 
-  osc.connect(g); g.connect(masterGain);
+  osc.connect(g); g.connect(sfxGain || masterGain);
   osc.start(t); osc.stop(t + o.dur + 0.02);
 }
 

@@ -45,6 +45,29 @@ function hash2(x, y) {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
+// --- settings -------------------------------------------------------------
+// Adjustable from the title screen and remembered between sessions.
+
+const SETTINGS = [
+  { key: 'music', label: 'MUSIC', get: () => getMusicVolume(), set: v => setMusicVolume(v) },
+  { key: 'sfx', label: 'SOUND', get: () => getSfxVolume(), set: v => setSfxVolume(v) }
+];
+
+function saveSettings() {
+  try {
+    const o = {};
+    for (const s of SETTINGS) o[s.key] = s.get();
+    localStorage.setItem('brostorm.settings', JSON.stringify(o));
+  } catch (e) { /* private browsing, disabled storage - not worth caring about */ }
+}
+
+function loadSettings() {
+  try {
+    const o = JSON.parse(localStorage.getItem('brostorm.settings') || '{}');
+    for (const s of SETTINGS) if (typeof o[s.key] === 'number') s.set(o[s.key]);
+  } catch (e) { /* ignore */ }
+}
+
 // --- keyboard -------------------------------------------------------------
 
 const PREVENT = new Set([

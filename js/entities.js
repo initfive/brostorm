@@ -431,13 +431,17 @@ class C4 extends Ent {
 
 class Player extends Ent {
   constructor(g, index, charIndex) {
-    super(0, 0, 12, 16);
+    // 15 and not 16: a tile is 16px, so a full-tile-tall hitbox cannot fit
+    // through a one-tile gap - including the tunnels you shoot yourself.
+    super(0, 0, 12, 15);
     this.g = g;
     this.anim = new Anim();
     this.burstLeft = 0;
     this.burstCd = 0;
     this.stillT = 0;
     this.hidden = false;
+    this.wallCoyote = 0;
+    this.lastWallDir = 0;
     this.index = index;
     this.char = CHARS[charIndex];
     this.charIndex = charIndex;
@@ -538,6 +542,9 @@ class Player extends Ent {
 
     // wall cling: press into a wall while airborne to stick and climb
     const pressingWall = this.wallDir !== 0 && want === this.wallDir;
+    // The -40 gate is deliberate: after a wall hop you are moving up fast and
+    // should be free of the wall until you slow near the apex, at which point
+    // you re-grip. Letting the cling persist would overwrite the hop instantly.
     if (!this.onGround && pressingWall && this.vy > -40) {
       this.climbing = true;
       this.vy = c.up ? -108 : (c.down ? 220 : 46);
@@ -547,17 +554,34 @@ class Player extends Ent {
       if (this.vy < 0 && !c.jump) this.vy += gravNow() * 1.1 * dt; // variable jump height
     }
 
+    // Remember the wall for a moment after losing grip. Releasing the
+    // direction drops the cling instantly, so without this there would be no
+    // window in which to kick away from it.
+    if (this.climbing) { this.wallCoyote = 0.16; this.lastWallDir = this.wallDir; }
+    else this.wallCoyote -= dt;
+
     // jump, with coyote time and input buffering so it never feels sticky
     if (this.onGround) this.coyote = 0.1; else this.coyote -= dt;
     if (c.jumpP) this.jumpBuf = 0.12; else this.jumpBuf -= dt;
     if (this.jumpBuf > 0) {
       if (this.coyote > 0) {
         this.vy = -ch.jump; this.jumpBuf = 0; this.coyote = 0; sfx('jump');
-      } else if (this.climbing) {
-        this.vy = -ch.jump * 0.95;
-        this.vx = -this.wallDir * 210;
-        this.facing = -this.wallDir;
-        this.jumpBuf = 0; this.climbing = false;
+      } else if (this.climbing || this.wallCoyote > 0) {
+        const wd = this.climbing ? this.wallDir : this.lastWallDir;
+        if (pressingWall) {
+          // Still holding into the wall: scramble UP it. Kicking off here is
+          // what made every tap of jump bounce you back to the same spot.
+          this.vy = -ch.jump * 0.82;
+          this.vx = wd * 30;
+        } else {
+          // Not holding into it any more, so leap away.
+          this.vy = -ch.jump * 0.95;
+          this.vx = -wd * 210;
+          this.facing = -wd;
+          this.climbing = false;
+        }
+        this.jumpBuf = 0;
+        this.wallCoyote = 0;
         sfx('jump');
       }
     }
@@ -626,6 +650,8 @@ class Player extends Ent {
     const g = this.g;
     this.stillT = 0;
     this.hidden = false;
+    this.wallCoyote = 0;
+    this.lastWallDir = 0;
     if (!inBurst) this.fireCd = w.rate;
     this.muzzle = 0.05;
     this.anim.recoil = w.pellets > 1 || w.lob ? 1 : 0.55;
@@ -903,7 +929,7 @@ function drawBro(ctx, ch, x, y, facing, pose, t, aimX, aimY, flash, playerIndex)
 
 class Grunt extends Ent {
   constructor(g, x, y, duty) {
-    super(x - 6, y - 16, 12, 16);
+    super(x - 6, y - 15, 12, 15);
     this.g = g;
     this.hittable = true;
     this.hp = 1;
@@ -1476,7 +1502,7 @@ class Pipe extends Ent {
 
 class Pow extends Ent {
   constructor(g, x, y) {
-    super(x - 6, y - 16, 12, 16);
+    super(x - 6, y - 15, 12, 15);
     this.g = g;
     this.hittable = false;
     this.animT = rand(0, 5);

@@ -30,7 +30,8 @@ player 2 on the right, so you can sit side by side.
 | Special | `G` *(or `H`)* | `/` *(or numpad `1`, right `Ctrl`)* |
 
 Global: `Esc` or `P` pause · `R` restart level · `Shift+R` quit to title ·
-`M` mute · `C` toggle between the random bro rotation and manual selection.
+`M` mute · `N` music on/off · `S` settings · `C` toggle between the random bro
+rotation and manual selection.
 
 The menu runs in two steps. **Bros** — each player presses their own fire key
 to join. **Operation** — left/right or `1`/`2` to choose, fire to deploy, `Esc`
@@ -145,6 +146,14 @@ but will never lift you, so it is a landing tool, not flight.
 - The camera is shared and will push a straggler along, so stay together.
 - Mission ends when both surviving bros reach the extraction chopper at the far
   east end of the map.
+
+## Sound
+
+Every effect and every note is synthesised at runtime — there are no audio
+files. The music is chiptune in the NES mould: two pulse voices, a triangle
+bass and a noise channel for percussion, with a different track per mission at
+a different tempo. Press **S** on the title screen for music and sound volume,
+both remembered between sessions.
 
 ## Missions
 

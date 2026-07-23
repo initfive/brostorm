@@ -45,6 +45,7 @@ class Game {
     this.levelIndex = 0;
     this.randomBros = true;     // the roster is a rotation, not a loadout
     this.menuStage = 'players';
+    this.settingRow = 0;
     this.charBag = [];
     this.slowCd = 0;
   }
@@ -86,6 +87,7 @@ class Game {
     this.camY = clamp(this.spawnY - VIEW_H * 0.6, 0, LEVEL_H * T - VIEW_H);
     this.state = 'play';
     this.toast(LEVEL_NAME, '#ffd166');
+    musicPlay(THEME.id);
     UI.setScreen(null);
   }
 
@@ -648,11 +650,14 @@ const UI = {
       missions: id('missions'),
       broMode: id('bro-mode'),
       stagePlayers: id('stage-players'),
-      stageOperation: id('stage-operation')
+      stageOperation: id('stage-operation'),
+      stageSettings: id('stage-settings'),
+      settingsRows: id('settings-rows')
     };
     this.buildCards(0);
     this.buildCards(1);
     this.buildMissions();
+    this.buildSettings();
     this.setScreen('title');
   },
 
@@ -705,6 +710,40 @@ const UI = {
     });
   },
 
+  buildSettings() {
+    const wrap = this.el.settingsRows;
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    for (const row of SETTINGS) {
+      const el = document.createElement('div');
+      el.className = 'setting';
+      const label = document.createElement('b');
+      label.textContent = row.label;
+      const bar = document.createElement('div');
+      bar.className = 'setting-bar';
+      for (let i = 0; i < 10; i++) bar.appendChild(document.createElement('i'));
+      const val = document.createElement('span');
+      val.className = 'setting-val';
+      el.append(label, bar, val);
+      wrap.appendChild(el);
+    }
+  },
+
+  renderSettings(game) {
+    const wrap = this.el.settingsRows;
+    if (!wrap) return;
+    const rows = wrap.children;
+    for (let i = 0; i < rows.length; i++) {
+      const v = SETTINGS[i].get();
+      rows[i].classList.toggle('active', i === game.settingRow);
+      const pips = rows[i].querySelector('.setting-bar').children;
+      for (let k = 0; k < pips.length; k++) {
+        pips[k].className = (k < Math.round(v * 10)) ? 'on' : '';
+      }
+      rows[i].querySelector('.setting-val').textContent = Math.round(v * 100) + '%';
+    }
+  },
+
   renderMissions(game) {
     const wrap = this.el.missions;
     if (!wrap) return;
@@ -716,7 +755,10 @@ const UI = {
 
   setScreen(name) {
     this.screen = name;
-    if (name === 'title' && this.game) this.game.menuStage = 'players';
+    if (name === 'title') {
+      if (this.game) this.game.menuStage = 'players';
+      musicPlay('menu');
+    }
     for (const k of ['title', 'paused', 'win', 'over']) {
       this.el[k].classList.toggle('hidden', name !== k);
     }
@@ -753,19 +795,25 @@ const UI = {
     const rnd = game.randomBros;
 
     if (game.menuStage === 'players') this.stepPlayers(game, rnd);
+    else if (game.menuStage === 'settings') this.stepSettings(game);
     else this.stepOperation(game);
 
     // --- render from final state ---
-    const onPlayers = game.menuStage === 'players';
+    const stage = game.menuStage;
     this.el.screens.classList.toggle('pick-bros', !rnd);
-    this.el.stagePlayers.classList.toggle('hidden', !onPlayers);
-    this.el.stageOperation.classList.toggle('hidden', onPlayers);
+    this.el.stagePlayers.classList.toggle('hidden', stage !== 'players');
+    this.el.stageOperation.classList.toggle('hidden', stage !== 'operation');
+    this.el.stageSettings.classList.toggle('hidden', stage !== 'settings');
     this.el.broMode.innerHTML = rnd
       ? 'BROS ASSIGNED AT RANDOM &nbsp;·&nbsp; <b>C</b> TO PICK'
       : 'PICKING MANUALLY &nbsp;·&nbsp; <b>C</b> FOR RANDOM';
 
     let hint, ready;
-    if (onPlayers) {
+    if (stage === 'settings') {
+      this.renderSettings(game);
+      hint = 'LEFT/RIGHT ADJUST  ·  UP/DOWN SELECT  ·  ESC BACK';
+      ready = true;
+    } else if (stage === 'players') {
       let joined = 0, allLocked = true;
       for (let i = 0; i < 2; i++) {
         this.renderSlot(i, game.sel[i], rnd);
@@ -783,7 +831,25 @@ const UI = {
     this.el.startHint.classList.toggle('ready', ready);
   },
 
+  stepSettings(game) {
+    const n = SETTINGS.length;
+    for (let i = 0; i < 2; i++) {
+      const c = game.ctls[i];
+      if (c.downP) game.settingRow = (game.settingRow + 1) % n;
+      if (c.upP) game.settingRow = (game.settingRow + n - 1) % n;
+      const row = SETTINGS[game.settingRow];
+      if (c.leftP) { row.set(row.get() - 0.1); saveSettings(); sfx('select'); }
+      if (c.rightP) { row.set(row.get() + 0.1); saveSettings(); sfx('beep'); }
+    }
+    if (keyHit.has('Escape') || keyHit.has('KeyS') ||
+      game.ctls[0].fireP || game.ctls[1].fireP) {
+      game.menuStage = 'players';
+      sfx('select');
+    }
+  },
+
   stepPlayers(game, rnd) {
+    if (keyHit.has('KeyS')) { game.menuStage = 'settings'; sfx('select'); return; }
     // Any press that joins or locks in is consumed by that action. Without
     // this, one tap of fire both confirms your bro and skips the whole step.
     let consumed = false;
@@ -932,13 +998,17 @@ function boot() {
   fitCanvas();
   window.addEventListener('resize', fitCanvas);
 
-  const unlock = () => { audioInit(); audioResume(); };
+  const unlock = () => { audioInit(); loadSettings(); audioResume(); musicPlay('menu'); };
   window.addEventListener('keydown', unlock, { once: true });
   window.addEventListener('pointerdown', unlock, { once: true });
   window.addEventListener('keydown', e => {
     if (e.code === 'KeyM') {
       const muted = audioToggleMute();
       document.getElementById('mute-flag').textContent = muted ? 'SOUND OFF (M)' : 'SOUND ON (M)';
+    }
+    if (e.code === 'KeyN') {
+      const on = musicSetEnabled(!musicOn);
+      game.toast(on ? 'MUSIC ON' : 'MUSIC OFF', '#ffd166');
     }
     if (e.code === 'KeyR' && game.state !== 'title') {
       if (e.shiftKey) { game.state = 'title'; UI.setScreen('title'); }
