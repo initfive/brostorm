@@ -24,15 +24,21 @@ class Terrain {
     this.time = 0;
   }
 
-  // Marks every tile that sits under the skyline as "interior". Empty interior
-  // tiles get a dark backdrop instead of open sky, so tunnels you dig and the
-  // insides of buildings read as enclosed space rather than holes in the world.
+  // Marks currently-solid rock as "interior", so once it is blasted away the
+  // hole shows a dark backdrop rather than open sky. Call this on the raw
+  // ground before any structures are carved; rooms inside buildings are
+  // flagged separately via markInterior(). Anything never marked - the air
+  // under a floating platform, say - correctly stays see-through.
   computeBackground() {
-    for (let x = 0; x < this.w; x++) {
-      let y = 0;
-      while (y < this.h && !TILE_SOLID[this.tiles[y * this.w + x]]) y++;
-      for (; y < this.h; y++) this.bg[y * this.w + x] = 1;
+    for (let i = 0; i < this.tiles.length; i++) {
+      if (TILE_SOLID[this.tiles[i]]) this.bg[i] = 1;
     }
+  }
+
+  markInterior(x, y, w, h) {
+    for (let j = y; j < y + h; j++)
+      for (let i = x; i < x + w; i++)
+        if (this.inBounds(i, j)) this.bg[j * this.w + i] = 1;
   }
 
   inBounds(x, y) { return x >= 0 && y >= 0 && x < this.w && y < this.h; }
@@ -147,30 +153,91 @@ class Terrain {
         ctx.fillStyle = pal[n < 0.45 ? 0 : n < 0.8 ? 1 : 2];
         ctx.fillRect(sx, sy, T, T);
 
+        const openUp = !TILE_SOLID[this.get(tx, ty - 1)];
+        const openL = !TILE_SOLID[this.get(tx - 1, ty)];
+        const openR = !TILE_SOLID[this.get(tx + 1, ty)];
+        const openDn = !TILE_SOLID[this.get(tx, ty + 1)];
+
+        // Depth shading: dirt bleaches toward the surface and darkens with
+        // every tile of rock above it, which gives the ground real thickness.
+        if (type === DIRT || type === STONE) {
+          let depth = 0;
+          while (depth < 7 && TILE_SOLID[this.get(tx, ty - 1 - depth)]) depth++;
+          if (depth === 0) {
+            ctx.fillStyle = 'rgba(255,226,180,0.10)';
+            ctx.fillRect(sx, sy, T, T);
+          } else if (depth > 2) {
+            ctx.fillStyle = 'rgba(0,0,0,' + Math.min(0.30, (depth - 2) * 0.06).toFixed(2) + ')';
+            ctx.fillRect(sx, sy, T, T);
+          }
+        }
+
         // Lit rim wherever a tile is exposed to open air above.
-        if (!TILE_SOLID[this.get(tx, ty - 1)]) {
-          ctx.fillStyle = type === DIRT ? '#4f8f3c'
-            : type === WOOD ? '#a8763f' : '#727b88';
-          ctx.fillRect(sx, sy, T, type === DIRT ? 4 : 2);
+        if (openUp) {
           if (type === DIRT) {
+            ctx.fillStyle = '#4f8f3c';
+            ctx.fillRect(sx, sy, T, 4);
             ctx.fillStyle = '#63a94a';
+            ctx.fillRect(sx, sy, T, 2);
+            // grass overhanging the edge, and the odd root dangling below
+            ctx.fillStyle = '#4f8f3c';
+            if (openL) ctx.fillRect(sx - 1, sy + 1, 1, 3);
+            if (openR) ctx.fillRect(sx + T, sy + 1, 1, 3);
+            const blade = Math.floor(n * 4);
+            for (let b = 0; b <= blade; b++) {
+              const bx = sx + ((Math.floor(n * 977) + b * 5) % (T - 2));
+              ctx.fillRect(bx, sy - 1, 1, 2);
+            }
+            if (n > 0.72) {
+              ctx.fillStyle = '#4a3320';
+              ctx.fillRect(sx + Math.floor(n * 11) % (T - 2), sy + 4, 1, 3);
+            }
+          } else {
+            ctx.fillStyle = type === WOOD ? '#a8763f' : '#727b88';
             ctx.fillRect(sx, sy, T, 2);
           }
         }
 
-        // Speckle so large fields of one material do not read as flat.
+        // Corner and edge shaping: bevel the lit sides, shade the buried ones.
+        if (type !== WOOD) {
+          if (openL) { ctx.fillStyle = 'rgba(255,255,255,0.07)'; ctx.fillRect(sx, sy, 2, T); }
+          if (openR) { ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fillRect(sx + T - 2, sy, 2, T); }
+          if (openDn) { ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fillRect(sx, sy + T - 2, T, 2); }
+        } else {
+          // planks
+          ctx.fillStyle = 'rgba(0,0,0,0.20)';
+          ctx.fillRect(sx, sy + 5, T, 1);
+          ctx.fillRect(sx, sy + 11, T, 1);
+        }
+
+        // Embedded pebbles and grit, so a field of one material is not flat.
         if (n > 0.86) {
           ctx.fillStyle = 'rgba(0,0,0,0.22)';
           ctx.fillRect(sx + Math.floor(n * 9) % 11, sy + Math.floor(n * 53) % 11, 3, 3);
+        } else if (n > 0.78 && type === DIRT) {
+          ctx.fillStyle = '#8b8175';
+          ctx.fillRect(sx + Math.floor(n * 71) % 12, sy + Math.floor(n * 31) % 12, 2, 2);
         }
 
-        // Cracks on damaged tiles.
+        // Three damage states: intact, cracked, collapsing.
         const maxHp = TILE_HP[type];
         if (maxHp && maxHp !== 255 && this.hp[i] < maxHp) {
           const f = 1 - this.hp[i] / maxHp;
-          ctx.fillStyle = 'rgba(0,0,0,' + (0.15 + f * 0.4).toFixed(2) + ')';
-          ctx.fillRect(sx + 2, sy + 5, Math.ceil(f * 10), 2);
-          ctx.fillRect(sx + 7, sy + 9, Math.ceil(f * 6), 2);
+          if (f < 0.5) {
+            // cracked - a couple of hairlines
+            ctx.fillStyle = 'rgba(0,0,0,0.42)';
+            ctx.fillRect(sx + 3, sy + 4, 5, 1);
+            ctx.fillRect(sx + 7, sy + 5, 1, 4);
+          } else {
+            // collapsing - crumbling voids chewed out of the block
+            ctx.fillStyle = 'rgba(0,0,0,0.55)';
+            ctx.fillRect(sx + 2, sy + 3, 7, 2);
+            ctx.fillRect(sx + 8, sy + 5, 2, 5);
+            ctx.fillRect(sx + 4, sy + 9, 5, 2);
+            ctx.fillStyle = 'rgba(0,0,0,0.30)';
+            ctx.fillRect(sx + 1, sy + 12, 4, 2);
+            ctx.fillRect(sx + 11, sy + 1, 3, 3);
+          }
         }
       }
     }

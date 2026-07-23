@@ -22,6 +22,10 @@ class Game {
     this.stopT = 0;
     this.flash = 0;
     this.time = 0;
+    this.slowMo = 0;
+    this.slowPhase = false;
+    this.chainN = 0;
+    this.chainT = -99;
 
     this.lives = 5;
     this.rescued = 0;
@@ -98,13 +102,45 @@ class Game {
 
   spawnDebris(x, y, type) {
     const pal = TILE_COLOR[type] || TILE_COLOR[DIRT];
-    const n = 2;
+    // Thin the shower out when a lot of tiles go at once, so a big blast stays
+    // as cheap to draw as a rifle round chewing a single tile.
+    const n = this.particles.length > 420 ? 2 : randInt(5, 9);
     for (let i = 0; i < n; i++) {
-      const a = rand(-Math.PI, 0), s = rand(40, 190);
+      const a = rand(-Math.PI, 0), s = rand(40, 210);
       this.particles.push(new Particle(x, y, Math.cos(a) * s, Math.sin(a) * s,
         rand(0.7, 1.6), pick(pal), randInt(2, 4), 'bit'));
     }
     if (this.particles.length > 900) this.particles.splice(0, 200);
+  }
+
+  // Puff of ground dust - landings, and the base of an explosion.
+  dust(x, y, n) {
+    for (let i = 0; i < n; i++) {
+      const dir = Math.random() < 0.5 ? -1 : 1;
+      this.particles.push(new Particle(
+        x + rand(-5, 5), y - 1,
+        dir * rand(25, 95), rand(-42, -8),
+        rand(0.28, 0.6), pick(['#9a8f80', '#b5a996', '#7d7466']),
+        rand(2, 4), 'smoke'));
+    }
+  }
+
+  smoke(x, y, n, life) {
+    for (let i = 0; i < n; i++) {
+      this.particles.push(new Particle(
+        x + rand(-3, 3), y + rand(-3, 3),
+        rand(-16, 16), rand(-34, -8),
+        life || rand(0.5, 1.1), pick(['#6b6259', '#565049', '#847a70']),
+        rand(3, 6), 'smoke'));
+    }
+  }
+
+  corpse(ent, look, kx, ky) {
+    this.projectiles.push(new Corpse(
+      this, ent.cx, ent.cy, look,
+      (kx || 0) * 0.7 + rand(-40, 40), (ky || 0) * 0.7 - rand(90, 190),
+      -sgn(kx || 1) || 1));
+    this.burst(ent.cx, ent.cy, 5, '#c8302a', 120, 0.3);
   }
 
   gib(x, y, look) {
@@ -142,10 +178,23 @@ class Game {
       this.particles.push(new Particle(x, y, Math.cos(a) * s, Math.sin(a) * s,
         rand(0.6, 1.4), pick(['#6b6259', '#4d463f', '#8a8078']), rand(4, 9), 'smoke'));
     }
+    // rising smoke column and a ring of dust kicked along the ground
+    this.smoke(x, y - 6, 5, 1.5);
+    this.dust(x, y + 4, 6);
     this.shake(r * 0.22);
     this.hitStop(0.06);
     this.flash = Math.min(1, this.flash + r / 90);
     sfx('explode');
+
+    // Three or more detonations in quick succession is a chain reaction, and
+    // chain reactions deserve to be watched in slow motion.
+    this.chainN = (this.time - this.chainT < 0.4) ? this.chainN + 1 : 1;
+    this.chainT = this.time;
+    if (this.chainN >= 3 && this.slowMo <= 0) {
+      this.slowMo = 0.55;
+      this.chainN = 0;
+      this.toast('CHAIN REACTION', '#ffb347');
+    }
   }
 
   // --- queries ------------------------------------------------------------
@@ -238,6 +287,14 @@ class Game {
     }
 
     if (this.stopT > 0) { this.stopT -= dt; this.updateEffectsOnly(dt * 0.25); return; }
+
+    // Slow motion runs the simulation on alternate ticks. Skipping whole steps
+    // keeps the fixed timestep intact, so physics stays identical at any speed.
+    if (this.slowMo > 0) {
+      this.slowMo -= dt;
+      this.slowPhase = !this.slowPhase;
+      if (!this.slowPhase) { this.updateEffectsOnly(dt * 0.5); return; }
+    }
 
     this.time += dt;
     this.terrain.time = this.time;
@@ -492,10 +549,10 @@ const UI = {
       card.dataset.index = i;
 
       const cv = document.createElement('canvas');
-      cv.width = 40; cv.height = 44; cv.className = 'portrait';
+      cv.width = 58; cv.height = 40; cv.className = 'portrait';
       const c = cv.getContext('2d');
       c.imageSmoothingEnabled = false;
-      drawBro(c, ch, 20, 40, 1, 'idle', 0, 1, 0, false, slot);
+      drawChar(c, ch, 24, 37, { facing: 1, state: 'idle', aimX: 1, aimY: 0 });
 
       const name = document.createElement('div');
       name.className = 'card-name';

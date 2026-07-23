@@ -12,8 +12,9 @@ const CHARS = [
     blurb: 'Fast, accurate, endless bullets. Grenades bounce.',
     weapon: 'rifle', special: 'grenade', specialMax: 4,
     speed: 172, jump: 330,
+    head: 'band', chest: null, accent: '#cc3b32',
     skin: '#e8b489', hair: '#2a1f18', shirt: '#4f7a3a', shirt2: '#3d6130',
-    pants: '#33502a', boots: '#2a221b', band: '#cc3b32'
+    pants: '#33502a', boots: '#2a221b'
   },
   {
     id: 'rubble',
@@ -22,8 +23,31 @@ const CHARS = [
     blurb: 'Slower, but blows holes through walls and everything behind them.',
     weapon: 'shotgun', special: 'c4', specialMax: 3,
     speed: 150, jump: 322,
+    head: 'helmet', chest: 'sash', accent: '#e0b040',
     skin: '#c68a5e', hair: '#161310', shirt: '#8c3a2a', shirt2: '#6f2c20',
-    pants: '#3c3730', boots: '#241f1a', band: '#e0b040'
+    pants: '#3c3730', boots: '#241f1a'
+  },
+  {
+    id: 'office',
+    name: 'THE OFFICE COMMANDO',
+    tag: 'BURST STAPLER  /  EXPLODING BRIEFCASE',
+    blurb: 'Three-round bursts and rolled-up sleeves. Deadline is now.',
+    weapon: 'stapler', special: 'briefcase', specialMax: 4,
+    speed: 178, jump: 336,
+    head: 'slick', chest: 'tie', accent: '#d02b2b',
+    skin: '#e6b189', hair: '#241c14', shirt: '#eceff4', shirt2: '#cfd5de',
+    pants: '#2f3746', boots: '#191d24'
+  },
+  {
+    id: 'grandma',
+    name: 'GRANDMA GRENADIER',
+    tag: 'GRENADE LAUNCHER  /  CLUSTER SHELL',
+    blurb: 'Slow as treacle, twice as devastating. Do not ask about her hip.',
+    weapon: 'launcher', special: 'cluster', specialMax: 2,
+    speed: 116, jump: 300,
+    head: 'bun', chest: 'apron', accent: '#b06fc0',
+    skin: '#e3bb9c', hair: '#d6d9de', shirt: '#7a5f95', shirt2: '#5f4a74',
+    pants: '#4a3f58', boots: '#2b2530'
   }
 ];
 
@@ -35,6 +59,17 @@ const WEAPONS = {
   shotgun: {
     rate: 0.5, pellets: 7, spread: 0.20, speed: 470, life: 0.34,
     carveR: 4.2, carveDmg: 5, kick: 175, size: 2, color: '#ffd166', sfx: 'shotgun'
+  },
+  // Fires in three-round bursts: burstGap between rounds, rate between bursts.
+  stapler: {
+    rate: 0.42, burst: 3, burstGap: 0.06, pellets: 1, spread: 0.06,
+    speed: 520, life: 0.8, carveR: 2.8, carveDmg: 2, kick: 30,
+    size: 3, color: '#cfd8e6', sfx: 'rifle'
+  },
+  // Lobs an arcing shell instead of firing a bullet.
+  launcher: {
+    rate: 0.95, lob: true, speed: 300, kick: 120, blastR: 34, blastDmg: 32,
+    size: 3, color: '#ffb347', sfx: 'shotgun'
   }
 };
 
@@ -233,6 +268,10 @@ class Grenade extends Ent {
     super(x - 3, y - 3, 6, 6);
     this.g = g; this.vx = vx; this.vy = vy;
     this.fuse = 1.25; this.owner = owner; this.spin = 0;
+    this.kind = 'frag';
+    this.blastR = 36; this.blastDmg = 30;
+    this.splits = 0;
+    this.smokeT = 0;
   }
   update(dt) {
     this.fuse -= dt;
@@ -242,14 +281,46 @@ class Grenade extends Ent {
     this.move(this.g.terrain, dt);
     if (this.hitWall) this.vx = -bounceX * 0.45;
     if (this.onGround) { this.vy = -bounceY * 0.35; this.vx *= 0.72; }
+
+    // trailing smoke so thrown ordnance is easy to track in a firefight
+    this.smokeT -= dt;
+    if (this.smokeT <= 0) {
+      this.smokeT = 0.05;
+      this.g.smoke(this.cx, this.cy, 1, 0.35);
+    }
+
     if (this.fuse <= 0) {
       this.dead = true;
-      this.g.explode(this.cx, this.cy, 36, 30, this.owner);
+      if (this.splits > 0) {
+        // cluster shell: fan out bomblets instead of detonating
+        for (let i = 0; i < this.splits; i++) {
+          const a = -Math.PI / 2 + (i - (this.splits - 1) / 2) * 0.42;
+          const b = new Grenade(this.g, this.cx, this.cy,
+            Math.cos(a) * 150 + this.vx * 0.4, Math.sin(a) * 150, this.owner);
+          b.fuse = rand(0.55, 0.95);
+          b.blastR = this.blastR; b.blastDmg = this.blastDmg;
+          this.g.projectiles.push(b);
+        }
+        this.g.burst(this.cx, this.cy, 10, '#ffd9a0', 140, 0.3, 'spark');
+        sfx('throwArc');
+        return;
+      }
+      this.g.explode(this.cx, this.cy, this.blastR, this.blastDmg, this.owner);
     }
   }
   draw(ctx, camX, camY) {
     const x = Math.round(this.cx - camX), y = Math.round(this.cy - camY);
-    ctx.fillStyle = this.fuse < 0.4 && Math.floor(this.fuse * 20) % 2 ? '#ff5b3a' : '#3f5a32';
+    const hot = this.fuse < 0.4 && Math.floor(this.fuse * 20) % 2;
+    if (this.kind === 'briefcase') {
+      ctx.fillStyle = hot ? '#ffd9a0' : '#6b4423';
+      ctx.fillRect(x - 5, y - 4, 10, 8);
+      ctx.fillStyle = '#3c2716';
+      ctx.fillRect(x - 5, y - 1, 10, 1);
+      ctx.fillStyle = '#c8a24a';
+      ctx.fillRect(x - 1, y - 6, 3, 2);          // handle
+      return;
+    }
+    ctx.fillStyle = hot ? '#ff5b3a' : (this.splits > 0 ? '#7a4a86' : '#3f5a32');
     ctx.fillRect(x - 3, y - 3, 6, 6);
     ctx.fillStyle = '#9aa48c';
     ctx.fillRect(x - 1, y - 5, 2, 2);
@@ -292,8 +363,11 @@ class C4 extends Ent {
 
 class Player extends Ent {
   constructor(g, index, charIndex) {
-    super(0, 0, 10, 14);
+    super(0, 0, 12, 16);
     this.g = g;
+    this.anim = new Anim();
+    this.burstLeft = 0;
+    this.burstCd = 0;
     this.index = index;
     this.char = CHARS[charIndex];
     this.charIndex = charIndex;
@@ -400,27 +474,73 @@ class Player extends Ent {
 
     // primary fire
     this.fireCd -= dt;
+    this.burstCd -= dt;
     if (this.muzzle > 0) this.muzzle -= dt;
     const wcfg = WEAPONS[ch.weapon];
-    if (c.fire && this.fireCd <= 0) this.shoot(wcfg);
+    if (wcfg.burst) {
+      // burst weapons: a trigger pull commits to N rounds
+      if (c.fire && this.fireCd <= 0 && this.burstLeft <= 0) {
+        this.burstLeft = wcfg.burst;
+        this.fireCd = wcfg.rate;
+      }
+      if (this.burstLeft > 0 && this.burstCd <= 0) {
+        this.burstLeft--;
+        this.burstCd = wcfg.burstGap;
+        this.shoot(wcfg, true);
+      }
+    } else if (c.fire && this.fireCd <= 0) {
+      this.shoot(wcfg);
+    }
 
     // special weapon
     if (c.specialP) this.useSpecial();
 
+    const fallVy = this.vy;
     this.move(g.terrain, dt);
-    if (this.onGround && !this.wasGround && this.vy >= 0) sfx('land');
+    if (this.onGround && !this.wasGround && fallVy > 60) {
+      // land: squash the sprite and kick up dust proportional to the impact
+      this.anim.squash = clamp(fallVy / 520, 0.25, 1);
+      g.dust(this.cx, this.y + this.h, clamp(Math.round(fallVy / 90), 2, 7));
+      sfx('land');
+    }
     this.wasGround = this.onGround;
+
+    // drive the animation state machine
+    this.anim.update(dt);
+    this.anim.set(
+      this.climbing ? 'climb'
+        : !this.onGround ? (this.vy < -20 ? 'jump' : 'fall')
+          : Math.abs(this.vx) > 14 ? 'run' : 'idle'
+    );
 
     if (this.touchingLava(g.terrain)) this.hurt(99, 0, -200, g);
     if (this.y > g.terrain.h * T + 40) this.hurt(99, 0, 0, g);
   }
 
-  shoot(w) {
+  shoot(w, inBurst) {
     const g = this.g;
-    this.fireCd = w.rate;
+    if (!inBurst) this.fireCd = w.rate;
     this.muzzle = 0.05;
-    const mx = this.cx + this.aimX * 9;
-    const my = this.cy - 1 + this.aimY * 9;
+    this.anim.recoil = w.pellets > 1 || w.lob ? 1 : 0.55;
+    const mx = this.cx + this.aimX * 11;
+    const my = this.cy - 2 + this.aimY * 11;
+
+    // grenade launcher lobs an arcing shell rather than firing bullets
+    if (w.lob) {
+      const shell = new Grenade(g, mx, my,
+        this.aimX * w.speed + this.vx * 0.3, this.aimY * w.speed - 130, this);
+      shell.fuse = 1.5;
+      shell.blastR = w.blastR;
+      shell.blastDmg = w.blastDmg;
+      g.projectiles.push(shell);
+      this.vx -= this.aimX * w.kick;
+      g.burst(mx, my, 8, '#ffcc7a', 150, 0.22, 'spark');
+      g.smoke(mx, my, 4);
+      g.shake(3.4);
+      sfx(w.sfx);
+      return;
+    }
+
     for (let i = 0; i < w.pellets; i++) {
       const a = Math.atan2(this.aimY, this.aimX) + rand(-w.spread, w.spread);
       g.bullets.push(new Bullet(g, mx, my, Math.cos(a), Math.sin(a), w, 0, this));
@@ -434,12 +554,24 @@ class Player extends Ent {
 
   useSpecial() {
     const g = this.g, ch = this.char;
-    if (ch.special === 'grenade') {
+    if (ch.special === 'grenade' || ch.special === 'briefcase' || ch.special === 'cluster') {
       if (this.special <= 0) { sfx('beep'); return; }
       this.special--;
+      this.anim.recoil = 0.7;
       const vx = this.aimX * 250 + this.vx * 0.4;
       const vy = this.aimY * 250 - 130;
-      g.projectiles.push(new Grenade(g, this.cx + this.aimX * 8, this.cy - 2, vx, vy, this));
+      const nade = new Grenade(g, this.cx + this.aimX * 8, this.cy - 2, vx, vy, this);
+      if (ch.special === 'briefcase') {
+        nade.kind = 'briefcase';
+        nade.blastR = 44; nade.blastDmg = 36;
+      } else if (ch.special === 'cluster') {
+        // splits into a fan of bomblets at the top of its arc
+        nade.kind = 'cluster';
+        nade.fuse = 0.85;
+        nade.blastR = 30; nade.blastDmg = 28;
+        nade.splits = 5;
+      }
+      g.projectiles.push(nade);
       sfx('throwArc');
     } else {
       // C4: first press throws a charge, next press detonates everything live.
@@ -465,7 +597,7 @@ class Player extends Ent {
     this.hittable = false;
     this.respawn = 1.5;
     this.deaths++;
-    g.gib(this.cx, this.cy, this.char);
+    g.corpse(this, this.char, kx || rand(-120, 120), ky || -60);
     g.shake(7);
     g.hitStop(0.09);
     sfx('hurt');
@@ -475,12 +607,23 @@ class Player extends Ent {
   draw(ctx, camX, camY) {
     if (!this.alive) return;
     if (this.invuln > 0 && Math.floor(this.invuln * 18) % 2) return;
-    const pose = this.climbing ? 'climb'
-      : !this.onGround ? 'air'
-        : Math.abs(this.vx) > 12 ? 'run' : 'idle';
-    drawBro(ctx, this.char, this.cx - camX, this.y + this.h - camY,
-      this.facing, pose, this.animT, this.aimX, this.aimY, this.muzzle > 0, this.index);
+    drawChar(ctx, this.char, this.cx - camX, this.y + this.h - camY, {
+      facing: this.facing,
+      anim: this.anim,
+      aimX: this.aimX, aimY: this.aimY,
+      muzzle: this.muzzle > 0,
+      shadowY: groundBelow(this.g.terrain, this.cx, this.y + this.h) - camY,
+      tag: this.index === 0 ? '#5ec8ff' : '#ff9a5e'
+    });
   }
+}
+
+// World y of the first solid surface beneath a point, for drop shadows.
+function groundBelow(ter, px, py) {
+  const tx = Math.floor(px / T);
+  let ty = Math.floor(py / T);
+  for (let i = 0; i < 14; i++, ty++) if (ter.solid(tx, ty)) return ty * T;
+  return py + 224;
 }
 
 // Draws a small pixel soldier. x is the horizontal centre, y is the feet line.
@@ -560,7 +703,7 @@ function drawBro(ctx, ch, x, y, facing, pose, t, aimX, aimY, flash, playerIndex)
 
 class Grunt extends Ent {
   constructor(g, x, y) {
-    super(x - 5, y - 14, 10, 14);
+    super(x - 6, y - 16, 12, 16);
     this.g = g;
     this.hittable = true;
     this.hp = 1;
@@ -568,12 +711,15 @@ class Grunt extends Ent {
     this.shootCd = rand(0.4, 1.4);
     this.alert = 0;
     this.animT = rand(0, 5);
+    this.anim = new Anim();
+    this.anim.t = rand(0, 2);
     this.kind = 'grunt';
   }
 
   update(dt) {
     const g = this.g;
     this.animT += dt;
+    this.anim.update(dt);
     this.gravity(dt);
 
     const target = g.nearestPlayer(this.cx, this.cy, 200);
@@ -589,6 +735,8 @@ class Grunt extends Ent {
         g.bullets.push(new Bullet(g, this.cx + Math.cos(a) * 9, this.cy + Math.sin(a) * 9,
           Math.cos(a), Math.sin(a), ENEMY_SHOT, 1, this));
         g.burst(this.cx + Math.cos(a) * 9, this.cy + Math.sin(a) * 9, 3, '#ffb27a', 90, 0.14, 'spark');
+        this.anim.recoil = 0.8;
+        this.muzzleT = 0.06;
         sfx('enemyShot');
       }
     } else {
@@ -607,34 +755,41 @@ class Grunt extends Ent {
 
   hurt(dmg, kx, ky, g) {
     if (this.dead) return;
+    this.anim.hurt = 1;
     this.hp -= dmg;
     if (this.hp <= 0) {
       this.dead = true;
       g.enemyKilled(this);
-      g.gib(this.cx, this.cy, ENEMY_LOOK);
+      g.corpse(this, ENEMY_LOOK, kx, ky);
       sfx('enemyDie');
     }
   }
 
   draw(ctx, camX, camY) {
-    const pose = !this.onGround ? 'air' : Math.abs(this.vx) > 8 ? 'run' : 'idle';
-    drawBro(ctx, ENEMY_LOOK, this.cx - camX, this.y + this.h - camY,
-      this.facing, pose, this.animT, this.facing, 0, false, -1);
+    if (this.muzzleT > 0) this.muzzleT -= 1 / 60;
+    this.anim.set(!this.onGround ? 'fall' : Math.abs(this.vx) > 8 ? 'run' : 'idle');
+    drawChar(ctx, ENEMY_LOOK, this.cx - camX, this.y + this.h - camY, {
+      facing: this.facing, anim: this.anim,
+      aimX: this.facing, aimY: 0, muzzle: this.muzzleT > 0,
+      shadowY: groundBelow(this.g.terrain, this.cx, this.y + this.h) - camY
+    });
     if (this.alert > 0.9) {
       ctx.fillStyle = '#ff4a3a';
-      ctx.fillRect(Math.round(this.cx - camX) - 1, Math.round(this.y - camY) - 7, 2, 4);
+      ctx.fillRect(Math.round(this.cx - camX) - 1, Math.round(this.y - camY) - 9, 2, 5);
     }
   }
 }
 
 class Rusher extends Ent {
   constructor(g, x, y) {
-    super(x - 5, y - 13, 10, 13);
+    super(x - 6, y - 15, 12, 15);
     this.g = g;
     this.hittable = true;
     this.hp = 1;
     this.dir = 1;
     this.animT = rand(0, 5);
+    this.anim = new Anim();
+    this.anim.t = rand(0, 2);
     this.charging = 0;
     this.kind = 'rusher';
   }
@@ -642,6 +797,7 @@ class Rusher extends Ent {
   update(dt) {
     const g = this.g;
     this.animT += dt;
+    this.anim.update(dt);
     this.gravity(dt);
 
     const target = g.nearestPlayer(this.cx, this.cy, 260);
@@ -675,20 +831,24 @@ class Rusher extends Ent {
 
   hurt(dmg, kx, ky, g) {
     if (this.dead) return;
+    this.anim.hurt = 1;
     this.hp -= dmg;
     if (this.hp <= 0) {
       this.dead = true;
       g.enemyKilled(this);
-      g.gib(this.cx, this.cy, RUSHER_LOOK);
+      g.corpse(this, RUSHER_LOOK, kx, ky);
       sfx('enemyDie');
     }
   }
 
   draw(ctx, camX, camY) {
-    const pose = !this.onGround ? 'air' : 'run';
-    drawBro(ctx, RUSHER_LOOK, this.cx - camX, this.y + this.h - camY,
-      this.facing, pose, this.animT * (this.charging > 0 ? 1.7 : 1),
-      this.facing, 0, false, -1);
+    // charging rushers animate faster - reads as panic from across the screen
+    if (this.charging > 0) this.anim.t += 1 / 90;
+    this.anim.set(!this.onGround ? 'fall' : 'run');
+    drawChar(ctx, RUSHER_LOOK, this.cx - camX, this.y + this.h - camY, {
+      facing: this.facing, anim: this.anim, aimX: this.facing, aimY: 0,
+      shadowY: groundBelow(this.g.terrain, this.cx, this.y + this.h) - camY
+    });
   }
 }
 
@@ -735,7 +895,10 @@ class Turret extends Ent {
   hurt(dmg, kx, ky, g) {
     if (this.dead) return;
     this.hp -= dmg;
-    g.burst(this.cx, this.cy - 4, 3, '#c8ccd4', 90, 0.2, 'spark');
+    this.flash = 0.12;
+    // metal: bright ricochet sparks rather than a puff of debris
+    g.burst(this.cx, this.cy - 4, 6, '#dfe6f2', 130, 0.24, 'spark');
+    g.burst(this.cx, this.cy - 4, 3, '#ffd166', 100, 0.2, 'spark');
     if (this.hp <= 0) {
       this.dead = true;
       g.enemyKilled(this);
@@ -757,6 +920,48 @@ class Turret extends Ent {
     ctx.fillRect(x - 5, y + 1, 10, 5);
     ctx.fillStyle = '#ff4a3a';
     ctx.fillRect(x - 1, y + 2, 2, 2);
+    if (this.flash > 0) {
+      this.flash -= 1 / 60;
+      ctx.globalAlpha = 0.8;
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(x - 7, y, 14, 12);
+      ctx.globalAlpha = 1;
+    }
+  }
+}
+
+// A body flung backwards by whatever killed it, tumbling until it comes apart.
+class Corpse extends Ent {
+  constructor(g, x, y, look, vx, vy, facing) {
+    super(x - 6, y - 8, 12, 16);
+    this.g = g;
+    this.look = look;
+    this.vx = vx; this.vy = vy;
+    this.facing = facing || 1;
+    this.anim = new Anim();
+    this.anim.set('dead');
+    this.life = rand(0.45, 0.7);
+    this.hittable = false;
+    this.kind = 'corpse';
+  }
+  update(dt) {
+    this.life -= dt;
+    this.anim.dieT += dt;
+    this.anim.update(dt);
+    this.gravity(dt, 0.85);
+    const bx = this.vx;
+    this.move(this.g.terrain, dt);
+    if (this.hitWall) this.vx = -bx * 0.3;
+    if (this.onGround) this.vx *= 0.86;
+    if (this.life <= 0) {
+      this.dead = true;
+      this.g.gib(this.cx, this.cy, this.look);
+    }
+  }
+  draw(ctx, camX, camY) {
+    drawChar(ctx, this.look, this.cx - camX, this.y + this.h - camY, {
+      facing: this.facing, anim: this.anim, aimX: this.facing, aimY: 0
+    });
   }
 }
 
@@ -800,15 +1005,18 @@ class Barrel extends Ent {
 
 class Pow extends Ent {
   constructor(g, x, y) {
-    super(x - 5, y - 14, 10, 14);
+    super(x - 6, y - 16, 12, 16);
     this.g = g;
     this.hittable = false;
     this.animT = rand(0, 5);
+    this.anim = new Anim();
+    this.anim.t = rand(0, 2);
     this.freed = 0;
     this.kind = 'pow';
   }
   update(dt) {
     this.animT += dt;
+    this.anim.update(dt);
     this.gravity(dt);
     if (this.freed > 0) {
       this.freed -= dt;
@@ -833,9 +1041,12 @@ class Pow extends Ent {
     sfx('rescue');
   }
   draw(ctx, camX, camY) {
-    const pose = this.freed > 0 ? 'run' : 'idle';
-    drawBro(ctx, POW_LOOK, this.cx - camX, this.y + this.h - camY,
-      this.facing, pose, this.animT * (this.freed > 0 ? 2 : 1), this.facing, 0, false, -1);
+    if (this.freed > 0) this.anim.t += 1 / 90;
+    this.anim.set(this.freed > 0 ? 'run' : 'idle');
+    drawChar(ctx, POW_LOOK, this.cx - camX, this.y + this.h - camY, {
+      facing: this.facing, anim: this.anim, aimX: this.facing, aimY: 0,
+      shadowY: groundBelow(this.g.terrain, this.cx, this.y + this.h) - camY
+    });
     if (this.freed <= 0) {
       ctx.fillStyle = Math.floor(this.animT * 3) % 2 ? '#ffe36b' : '#c9a63c';
       ctx.fillRect(Math.round(this.cx - camX) - 1, Math.round(this.y - camY) - 8, 2, 5);
@@ -850,19 +1061,19 @@ const ENEMY_SHOT = {
 };
 
 const ENEMY_LOOK = {
-  weapon: 'rifle',
+  weapon: 'rifle', head: 'helmet', chest: null, accent: '#8b1e18',
   skin: '#b5895f', hair: '#20242c', shirt: '#3b4250', shirt2: '#2e3441',
-  pants: '#282d38', boots: '#1a1d24', band: '#8b1e18'
+  pants: '#282d38', boots: '#1a1d24'
 };
 
 const RUSHER_LOOK = {
-  weapon: 'none',
+  weapon: 'none', head: 'band', chest: 'sash', accent: '#d24a9a',
   skin: '#a8735a', hair: '#1a1a1a', shirt: '#6b2f6b', shirt2: '#552455',
-  pants: '#2f2438', boots: '#1a1520', band: '#d24a9a'
+  pants: '#2f2438', boots: '#1a1520'
 };
 
 const POW_LOOK = {
-  weapon: 'none',
+  weapon: 'none', head: 'slick', chest: null, accent: '#d9d2c2',
   skin: '#e0b48c', hair: '#5a4030', shirt: '#d9d2c2', shirt2: '#bdb6a6',
-  pants: '#8a8375', boots: '#4a463e', band: '#d9d2c2'
+  pants: '#8a8375', boots: '#4a463e'
 };

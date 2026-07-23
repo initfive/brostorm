@@ -37,7 +37,9 @@ function buildLevel(game) {
 
   // --- base ground ---------------------------------------------------------
   for (let x = 0; x < LEVEL_W; x++) {
-    const g = groundAt(x) + (rng() < 0.14 ? 1 : 0);
+    // Keep the landing zone dead flat. Elsewhere a little jitter breaks up the
+    // skyline, but a step right where you spawn just blocks your first shot.
+    const g = groundAt(x) + (x > 20 && rng() < 0.14 ? 1 : 0);
     for (let y = g; y < LEVEL_H; y++) {
       let t = DIRT;
       if (y > g + 5 + Math.floor(rng() * 3)) t = STONE;
@@ -58,6 +60,10 @@ function buildLevel(game) {
     }
   }
 
+  // Backdrop mask is taken from the raw ground, before structures carve into
+  // it, so excavated rock reads as enclosed and open sky stays open sky.
+  ter.computeBackground();
+
   // World-space y of the real ground surface. Scans the built grid rather than
   // trusting groundAt(), because the base pass jitters some columns by a tile.
   function surf(tx) {
@@ -69,6 +75,7 @@ function buildLevel(game) {
   // helpers for set pieces
   // -------------------------------------------------------------------------
   function hut(tx, ty, w, h) {
+    ter.markInterior(tx, ty, w, h);
     ter.fillRect(tx, ty, w, h, EMPTY);
     ter.outlineRect(tx, ty, w, h, STONE);
     for (let i = tx + 1; i < tx + w - 1; i++) ter.set(i, ty, WOOD);
@@ -147,6 +154,7 @@ function buildLevel(game) {
   // SECTION 5 (x 102-122) - the watchtower, climb the walls
   // -------------------------------------------------------------------------
   const towerX = 106, towerBase = groundAt(towerX);
+  ter.markInterior(towerX, towerBase - 20, 10, 20);
   ter.fillRect(towerX, towerBase - 20, 10, 20, EMPTY);
   ter.outlineRect(towerX, towerBase - 20, 10, 20, STONE);
   for (let f = 0; f < 3; f++) {
@@ -179,6 +187,7 @@ function buildLevel(game) {
   // SECTION 7 (x 156-190) - the fortress, two floors and a lot of ordnance
   // -------------------------------------------------------------------------
   const fx = 160, fTop = groundAt(fx + 10) - 16;
+  ter.markInterior(fx, fTop, 24, 17);
   ter.fillRect(fx, fTop, 24, 17, EMPTY);
   ter.outlineRect(fx, fTop, 24, 17, STONE);
   for (let i = fx + 1; i < fx + 23; i++) ter.set(i, fTop + 8, WOOD);
@@ -224,7 +233,6 @@ function buildLevel(game) {
   spawn(Grunt, 228, padY * T);
   spawn(Grunt, 243, padY * T);
 
-  ter.computeBackground();
   game.goal = { x: 232 * T, y: (padY - 3) * T, w: 12 * T, h: 5 * T };
   game.totalEnemies = game.enemies.filter(e => e.hittable && e.kind !== 'barrel').length;
   return ter;

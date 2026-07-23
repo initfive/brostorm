@@ -1,0 +1,308 @@
+// ---------------------------------------------------------------------------
+// BROSTORM - modular rectangle sprite system
+//
+// Every character is assembled at draw time from a "look" recipe: a handful of
+// rectangles plus a head style, a weapon silhouette and one accent colour.
+// No sprite sheets, no external assets. Proportions are deliberately pushed -
+// big head, broad shoulders, short legs - so a character is identifiable from
+// its silhouette alone.
+// ---------------------------------------------------------------------------
+
+const ANIM_FPS = 10;
+
+// Body metrics in sprite pixels, measured up from the feet line.
+// ~25% larger than the original 16px build.
+const BUILD = {
+  headW: 9, headH: 8,
+  torsoW: 11, torsoH: 7,
+  legW: 4, legH: 6,
+  armW: 3
+};
+
+function shade(hex, amt) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = clamp(((n >> 16) & 255) + amt, 0, 255);
+  const g = clamp(((n >> 8) & 255) + amt, 0, 255);
+  const b = clamp((n & 255) + amt, 0, 255);
+  return '#' + ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
+}
+
+// --- animation state ------------------------------------------------------
+
+class Anim {
+  constructor() {
+    this.state = 'idle';
+    this.t = 0;
+    this.squash = 0;    // 1 = just landed hard
+    this.recoil = 0;    // 1 = just fired
+    this.hurt = 0;      // 1 = just took a hit (white flash)
+    this.dieT = 0;
+  }
+  set(state) {
+    if (state === this.state) return;
+    this.state = state;
+    this.t = 0;
+  }
+  update(dt) {
+    this.t += dt;
+    this.squash = Math.max(0, this.squash - dt * 5);
+    this.recoil = Math.max(0, this.recoil - dt * 7);
+    this.hurt = Math.max(0, this.hurt - dt * 9);
+  }
+  get frame() { return Math.floor(this.t * ANIM_FPS) & 3; }
+}
+
+// Four-frame cycles. Index by Anim.frame.
+const RUN_LEG_F = [4, 1, -4, -1];    // front leg offset
+const RUN_LEG_B = [-4, -1, 4, 1];    // back leg offset
+const RUN_BOB = [0, -2, 0, -1];
+const IDLE_BOB = [0, 0, -1, 0];
+const CLIMB_LEG = [2, 0, -2, 0];
+
+// --- weapons --------------------------------------------------------------
+
+// Drawn in weapon-local space: +x points along the aim vector, y is across.
+function drawWeaponShape(ctx, type, accent, muzzle) {
+  const dark = '#2b2e35', mid = '#43474f', metal = '#6a707c';
+  switch (type) {
+    case 'rifle':
+      ctx.fillStyle = dark; ctx.fillRect(-2, -1, 13, 3);      // barrel + body
+      ctx.fillStyle = mid; ctx.fillRect(-3, -2, 5, 4);        // receiver
+      ctx.fillStyle = dark; ctx.fillRect(1, 2, 2, 3);         // magazine
+      ctx.fillStyle = accent; ctx.fillRect(8, -2, 2, 1);      // front sight
+      break;
+    case 'shotgun':
+      ctx.fillStyle = dark; ctx.fillRect(-3, -2, 13, 4);      // fat twin barrel
+      ctx.fillStyle = metal; ctx.fillRect(2, -2, 8, 1);
+      ctx.fillStyle = '#7a4a24'; ctx.fillRect(-5, -1, 3, 3);  // wooden stock
+      ctx.fillStyle = accent; ctx.fillRect(-1, 1, 4, 2);      // pump
+      break;
+    case 'stapler':
+      ctx.fillStyle = '#c8ccd2'; ctx.fillRect(-3, -3, 10, 5); // chunky boxy body
+      ctx.fillStyle = accent; ctx.fillRect(-3, -3, 10, 2);    // coloured lid
+      ctx.fillStyle = dark; ctx.fillRect(7, -1, 3, 2);        // nose
+      ctx.fillStyle = '#8f959e'; ctx.fillRect(-1, 2, 5, 2);   // hinge
+      break;
+    case 'launcher':
+      ctx.fillStyle = mid; ctx.fillRect(-4, -3, 15, 6);       // enormous tube
+      ctx.fillStyle = dark; ctx.fillRect(10, -4, 3, 8);       // muzzle bell
+      ctx.fillStyle = accent; ctx.fillRect(-1, 3, 6, 3);      // drum magazine
+      ctx.fillStyle = metal; ctx.fillRect(-4, -3, 15, 1);
+      break;
+    case 'none':
+    default:
+      return;
+  }
+  if (muzzle) {
+    const tip = type === 'launcher' ? 14 : type === 'stapler' ? 11 : 12;
+    ctx.fillStyle = '#fff3c4';
+    ctx.fillRect(tip, -3, 6, 6);
+    ctx.fillStyle = '#ffd166';
+    ctx.fillRect(tip + 5, -2, 4, 4);
+    ctx.fillRect(tip + 2, -5, 2, 10);
+  }
+}
+
+// --- head styles ----------------------------------------------------------
+
+function drawHead(ctx, look, hx, hy, w, h, facing) {
+  const skin = look.skin;
+  ctx.fillStyle = skin;
+  ctx.fillRect(hx, hy, w, h);
+  ctx.fillStyle = shade(skin, -28);
+  ctx.fillRect(hx + (facing > 0 ? w - 2 : 0), hy + 2, 2, h - 2);   // cheek shade
+
+  const eyeX = hx + (facing > 0 ? w - 4 : 2);
+  ctx.fillStyle = '#181410';
+  ctx.fillRect(eyeX, hy + 4, 2, 2);
+
+  switch (look.head) {
+    case 'band':                                  // headband + short hair
+      ctx.fillStyle = look.hair; ctx.fillRect(hx, hy - 1, w, 3);
+      ctx.fillStyle = look.accent; ctx.fillRect(hx - 1, hy + 1, w + 2, 2);
+      ctx.fillRect(hx + (facing > 0 ? -3 : w + 1), hy + 2, 3, 5);  // trailing tail
+      break;
+    case 'helmet':                                // dome + brim
+      ctx.fillStyle = look.accent; ctx.fillRect(hx - 1, hy - 3, w + 2, 5);
+      ctx.fillStyle = shade(look.accent, -35); ctx.fillRect(hx - 2, hy + 1, w + 4, 2);
+      ctx.fillStyle = shade(look.accent, 28); ctx.fillRect(hx + 1, hy - 3, w - 4, 2);
+      break;
+    case 'slick':                                 // neat side parting
+      ctx.fillStyle = look.hair; ctx.fillRect(hx, hy - 2, w, 4);
+      ctx.fillStyle = shade(look.hair, 30);
+      ctx.fillRect(hx + (facing > 0 ? w - 4 : 1), hy - 2, 3, 2);
+      break;
+    case 'bun':                                   // grey bun + big sunglasses
+      // Thin cap only - leave the lower half of the face bare, or she reads as
+      // a featureless white block instead of a person.
+      ctx.fillStyle = look.hair;
+      ctx.fillRect(hx - 1, hy - 2, w + 2, 3);
+      ctx.fillStyle = shade(look.hair, -22);                        // the bun
+      ctx.fillRect(hx + (facing > 0 ? -4 : w), hy - 1, 4, 4);
+      ctx.fillStyle = '#15171c';                                    // shades
+      ctx.fillRect(hx, hy + 3, w, 2);
+      ctx.fillStyle = '#4a5260';
+      ctx.fillRect(hx + (facing > 0 ? w - 3 : 1), hy + 3, 2, 1);
+      break;
+  }
+}
+
+// --- the character --------------------------------------------------------
+
+// cx = horizontal centre, feetY = the ground line the character stands on.
+function drawChar(ctx, look, cx, feetY, o) {
+  o = o || {};
+  const facing = o.facing || 1;
+  const anim = o.anim;
+  const state = anim ? anim.state : (o.state || 'idle');
+  const f = anim ? anim.frame : 0;
+  const B = BUILD;
+
+  cx = Math.round(cx);
+  feetY = Math.round(feetY);
+
+  // --- ground shadow, drawn untransformed so it stays flat ---
+  if (o.shadowY !== undefined && state !== 'dead') {
+    const drop = clamp((o.shadowY - feetY) / 70, 0, 1);
+    const sw = Math.round((B.torsoW + 3) * (1 - drop * 0.45));
+    ctx.globalAlpha = 0.34 * (1 - drop * 0.6);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(cx - sw / 2, Math.round(o.shadowY) - 2, sw, 3);
+    ctx.globalAlpha = 1;
+  }
+
+  // --- pose -------------------------------------------------------------
+  let bob = 0, legF = 0, legB = 0, tuck = 0, lean = 0;
+  let sqX = 1, sqY = 1, rot = 0;
+
+  switch (state) {
+    case 'run':
+      legF = RUN_LEG_F[f]; legB = RUN_LEG_B[f];
+      bob = RUN_BOB[f]; lean = facing * 1;
+      break;
+    case 'jump':
+      tuck = 3; legF = 2; legB = -1; bob = -1; lean = facing * 1;
+      break;
+    case 'fall':
+      tuck = 1; legF = -2; legB = 2; lean = -facing * 1;
+      break;
+    case 'climb':
+      legF = CLIMB_LEG[f]; legB = -CLIMB_LEG[f]; lean = -facing * 2;
+      break;
+    case 'dead':
+      rot = -facing * clamp(anim ? anim.dieT * 7 : 1.2, 0, 2.2);
+      tuck = 2; legF = 3; legB = -3;
+      break;
+    default:                                    // idle - a slow breath
+      bob = IDLE_BOB[f];
+      break;
+  }
+
+  if (anim) {
+    if (anim.squash > 0) { sqY = 1 - anim.squash * 0.28; sqX = 1 + anim.squash * 0.26; }
+    if (anim.recoil > 0) { sqY = 1 - anim.recoil * 0.10; sqX = 1 + anim.recoil * 0.12; }
+  }
+
+  ctx.save();
+  ctx.translate(cx, feetY);
+  if (rot) ctx.rotate(rot);
+  if (sqX !== 1 || sqY !== 1) ctx.scale(sqX, sqY);
+
+  // recoil shoves the whole body back along the aim vector
+  let rx = 0, ry = 0;
+  if (anim && anim.recoil > 0) {
+    rx = -(o.aimX || facing) * anim.recoil * 3;
+    ry = -(o.aimY || 0) * anim.recoil * 2;
+  }
+  ctx.translate(rx, ry + bob);
+
+  const torsoTop = -(B.legH + B.torsoH) - tuck;
+  const headTop = torsoTop - B.headH;
+
+  // --- legs -------------------------------------------------------------
+  const legY = -B.legH - tuck;
+  ctx.fillStyle = look.pants;
+  ctx.fillRect(-B.legW - 1 + legB, legY, B.legW, B.legH + tuck);
+  ctx.fillRect(1 + legF, legY, B.legW, B.legH + tuck);
+  ctx.fillStyle = look.boots;
+  ctx.fillRect(-B.legW - 1 + legB, -2, B.legW, 2);
+  ctx.fillRect(1 + legF, -2, B.legW, 2);
+
+  // --- torso ------------------------------------------------------------
+  ctx.fillStyle = look.shirt;
+  ctx.fillRect(-B.torsoW / 2 + lean, torsoTop, B.torsoW, B.torsoH);
+  ctx.fillStyle = look.shirt2;
+  ctx.fillRect(-B.torsoW / 2 + lean, torsoTop + B.torsoH - 3, B.torsoW, 3);
+  ctx.fillStyle = 'rgba(0,0,0,0.20)';                    // form shadow
+  ctx.fillRect((facing > 0 ? 2 : -B.torsoW / 2) + lean, torsoTop, B.torsoW / 2 - 1, B.torsoH);
+
+  // optional chest detail - tie, sash, belt
+  if (look.chest === 'tie') {
+    ctx.fillStyle = look.accent;
+    ctx.fillRect(lean + (facing > 0 ? 0 : -2), torsoTop + 1, 2, 6);
+  } else if (look.chest === 'sash') {
+    ctx.fillStyle = look.accent;
+    ctx.fillRect(-B.torsoW / 2 + lean, torsoTop + 2, B.torsoW, 2);
+  } else if (look.chest === 'apron') {
+    ctx.fillStyle = look.accent;
+    ctx.fillRect(-B.torsoW / 2 + 2 + lean, torsoTop + 2, B.torsoW - 4, B.torsoH - 1);
+  }
+
+  // --- head -------------------------------------------------------------
+  drawHead(ctx, look, -B.headW / 2 + lean, headTop, B.headW, B.headH, facing);
+
+  // --- arms + weapon ----------------------------------------------------
+  const ax = o.aimX !== undefined ? o.aimX : facing;
+  const ay = o.aimY || 0;
+  const shX = lean + facing * 2;
+  const shY = torsoTop + 2;
+  const ang = Math.atan2(ay, ax);
+
+  const armed = look.weapon && look.weapon !== 'none';
+  ctx.save();
+  ctx.translate(shX, shY);
+  if (armed) {
+    ctx.rotate(ang);
+    ctx.fillStyle = look.skin;                           // arm extended to aim
+    ctx.fillRect(0, -1, 8, BUILD.armW);
+    ctx.fillStyle = shade(look.skin, -30);
+    ctx.fillRect(0, 1, 8, 1);
+    ctx.translate(8, 0);
+    drawWeaponShape(ctx, look.weapon, look.accent, o.muzzle);
+  } else {
+    // Unarmed: a short arm swinging at the side. A full-length aimed arm on
+    // someone holding nothing just reads as a stick poking out of the torso.
+    const swing = state === 'run' ? RUN_LEG_F[f] * 0.4 : 0;
+    ctx.fillStyle = look.skin;
+    ctx.fillRect(facing > 0 ? -1 : -3, 0, 4, 5);
+    ctx.fillRect(facing > 0 ? swing : -2 - swing, 3, 3, 3);
+  }
+  ctx.restore();
+
+  // --- white hit flash --------------------------------------------------
+  if (anim && anim.hurt > 0.02) {
+    ctx.globalAlpha = Math.min(0.85, anim.hurt);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(-B.torsoW / 2 - 1, headTop - 3, B.torsoW + 2, B.headH + B.torsoH + B.legH + 4);
+    ctx.globalAlpha = 1;
+  }
+
+  ctx.restore();
+
+  // --- player tag, kept outside the transform so it never wobbles -------
+  if (o.tag) {
+    ctx.fillStyle = o.tag;
+    ctx.fillRect(cx - 1, feetY - (B.legH + B.torsoH + B.headH) - 7, 3, 3);
+  }
+}
+
+// Back-compat shim: older call sites (and the character-select cards) still
+// use the positional drawBro signature.
+function drawBro(ctx, look, x, y, facing, pose, t, aimX, aimY, flash, playerIndex) {
+  drawChar(ctx, look, x, y, {
+    facing: facing,
+    state: pose === 'air' ? 'fall' : pose,
+    aimX: aimX, aimY: aimY, muzzle: flash,
+    tag: playerIndex === 0 ? '#5ec8ff' : playerIndex === 1 ? '#ff9a5e' : null
+  });
+}
