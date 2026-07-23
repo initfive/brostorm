@@ -189,6 +189,12 @@ function drawChar(ctx, look, cx, feetY, o) {
     case 'climb':
       legF = CLIMB_LEG[f]; legB = -CLIMB_LEG[f]; lean = -facing * 2;
       break;
+    case 'sleep':
+      // slumped in a chair: sitting lower, legs out front, head lolling back
+      bob = 5; lean = -facing * 2;
+      legF = 5; legB = 3; tuck = -2;
+      rot = facing * 0.12;
+      break;
     case 'dead':
       rot = -facing * clamp(anim ? anim.dieT * 7 : 1.2, 0, 2.2);
       tuck = 2; legF = 3; legB = -3;
@@ -413,6 +419,29 @@ function drawProp(ctx, p, camX, camY, time) {
     }
     ctx.fillStyle = Math.floor(time * 2) % 2 ? '#ff4a3a' : '#5a1a14';
     ctx.fillRect(x - 1, y - p.h - 3, 3, 3);
+    return;
+  }
+
+  if (p.type === 'chair') {
+    // a folding chair, occupied or otherwise
+    ctx.fillStyle = '#6b4a2a';
+    ctx.fillRect(x - 6, y - 8, 12, 3);              // seat
+    ctx.fillRect(x + (p.facing > 0 ? 4 : -6), y - 17, 2, 10);   // backrest
+    ctx.fillStyle = '#4d351d';
+    ctx.fillRect(x - 5, y - 5, 2, 5);               // legs
+    ctx.fillRect(x + 3, y - 5, 2, 5);
+    return;
+  }
+
+  if (p.type === 'flame') {
+    // little fire on top of something that really should not be on fire
+    const f = 4 + Math.sin(time * 11 + p.phase) * 2;
+    ctx.fillStyle = 'rgba(255,140,50,0.85)';
+    ctx.fillRect(x - 3, y - f, 6, f);
+    ctx.fillStyle = 'rgba(255,214,120,0.9)';
+    ctx.fillRect(x - 1, y - f * 0.7, 2, f * 0.7);
+    ctx.fillStyle = 'rgba(255,90,40,0.5)';
+    ctx.fillRect(x - 4, y - 2, 8, 2);
     return;
   }
 

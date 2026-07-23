@@ -119,6 +119,10 @@ function buildGulch(game) {
   spawn(Grunt, 26, surf(26));
   barrelAt(23, surf(23));
   barrelAt(24, surf(24));
+  // a guard warming his hands over an explosive barrel
+  barrelAt(29, surf(29));
+  game.props.push({ type: 'flame', x: 29 * T + 8, y: surf(29) - 14, phase: 1.1 });
+  game.enemies.push(new Grunt(game, 31 * T, surf(31), 'warm'));
 
   // -------------------------------------------------------------------------
   // SECTION 2 (x 33-48) - first lava gap, cross it however you like
@@ -137,7 +141,10 @@ function buildGulch(game) {
   ter.fillRect(62, bTop + 4, 2, 2, EMPTY);         // window
   spawn(Turret, 60, bTop * T);
   spawn(Grunt, 55, (bTop + 9) * T);
-  spawn(Grunt, 64, (bTop + 9) * T);
+  // asleep at his post inside the bunker
+  game.props.push({ type: 'chair', x: 64 * T + 8, y: (bTop + 9) * T, facing: 1 });
+  game.enemies.push(new Grunt(game, 64 * T, (bTop + 9) * T, 'sleep'));
+  game.enemies.push(new Poster(game, 53 * T + 2, (bTop + 4) * T, 1));
   barrelAt(58, (bTop + 9) * T);
   barrelAt(59, (bTop + 9) * T);
   powAt(66, (bTop + 9) * T);
@@ -148,6 +155,8 @@ function buildGulch(game) {
   // -------------------------------------------------------------------------
   cave(78, groundAt(80) + 7, 20, 2);
   powAt(88, (groundAt(88) + 8) * T);
+  game.enemies.push(new Chicken(game, 92 * T, surf(92)));
+  game.enemies.push(new Chicken(game, 95 * T, surf(95)));
   spawn(Rusher, 82, surf(82));
   spawn(Rusher, 86, surf(86));
   spawn(Grunt, 94, surf(94));
@@ -167,6 +176,7 @@ function buildGulch(game) {
     ter.set(towerX + (f % 2 ? 3 : 6), fy, EMPTY);
   }
   ter.fillRect(towerX, towerBase - 1, 3, 2, EMPTY);
+  game.enemies.push(new Poster(game, towerX + 1, (towerBase - 9) * T, 1));
   spawn(Turret, towerX + 5, (towerBase - 20) * T);
   spawn(Grunt, towerX + 3, (towerBase - 6) * T);
   spawn(Grunt, towerX + 7, (towerBase - 11) * T);
@@ -209,6 +219,9 @@ function buildGulch(game) {
   barrelAt(fx + 6, (fTop + 16) * T);
   barrelAt(fx + 7, (fTop + 16) * T);
   barrelAt(fx + 17, (fTop + 8) * T);
+  game.props.push({ type: 'chair', x: (fx + 2) * T + 8, y: (fTop + 16) * T, facing: 1 });
+  game.enemies.push(new Grunt(game, (fx + 2) * T, (fTop + 16) * T, 'sleep'));
+  game.enemies.push(new Poster(game, (fx + 1) * T, (fTop + 3) * T, 1));
   powAt(fx + 11, (fTop + 8) * T);
   powAt(fx + 21, (fTop + 16) * T);
 
@@ -223,6 +236,7 @@ function buildGulch(game) {
   spawn(Grunt, 210, surf(210));
   spawn(Turret, 214, surf(214));
   barrelAt(208, surf(208));
+  game.enemies.push(new Chicken(game, 201 * T, surf(201)));
   powAt(212, surf(212));
 
   // -------------------------------------------------------------------------
@@ -237,7 +251,7 @@ function buildGulch(game) {
   spawn(Grunt, 243, padY * T);
 
   game.goal = { x: 232 * T, y: (padY - 3) * T, w: 12 * T, h: 5 * T };
-  game.totalEnemies = game.enemies.filter(e => e.hittable && e.kind !== 'barrel').length;
+  game.totalEnemies = game.enemies.filter(isScoredEnemy).length;
   return ter;
 }
 
@@ -334,13 +348,21 @@ function buildRefinery(game) {
   spawn(Grunt, 19, surf(19));
   spawn(Grunt, 24, surf(24));
   barrelAt(13, surf(13));
+  // the night shift, still asleep
+  game.props.push({ type: 'chair', x: 11 * T + 8, y: surf(11), facing: 1 });
+  game.enemies.push(new Grunt(game, 11 * T, surf(11), 'sleep'));
+  game.enemies.push(new Chicken(game, 21 * T, surf(21)));
 
   // -------------------------------------------------------------------------
   // SECTION 2 (x 28-48) - the first pipeline, and a lesson in blast radius
   // -------------------------------------------------------------------------
   pipeline(28, groundAt(30) - 4, 9, 2);
   spawn(Grunt, 33, surf(33));
-  spawn(Rusher, 39, surf(39));
+  // warming his hands over a drum of refined fuel
+  barrelAt(36, surf(36));
+  game.props.push({ type: 'flame', x: 36 * T + 8, y: surf(36) - 14, phase: 2.4 });
+  game.enemies.push(new Grunt(game, 38 * T, surf(38), 'warm'));
+  spawn(Rusher, 42, surf(42));
   spawn(Grunt, 44, surf(44));
   barrelAt(46, surf(46));
   flare(50, 46);
@@ -352,6 +374,8 @@ function buildRefinery(game) {
   tank(70, groundAt(74) - 9, 9, 9);
   spawn(Turret, 61, (groundAt(60) - 11) * T);
   spawn(Grunt, 67, surf(67));
+  game.enemies.push(new Chicken(game, 69 * T, surf(69)));
+  game.enemies.push(new Chicken(game, 78 * T, surf(78)));
   spawn(Rusher, 80, surf(80));
   powAt(74, (groundAt(74) - 1) * T);
 
@@ -395,6 +419,7 @@ function buildRefinery(game) {
     ter.set(twX + (f % 2 ? 3 : 8), fy, EMPTY);
   }
   ter.fillRect(twX, twBase - 1, 3, 2, EMPTY);
+  game.enemies.push(new Poster(game, twX + 1, (twBase - 8) * T, 1));
   spawn(Turret, twX + 6, (twBase - 22) * T);
   spawn(Grunt, twX + 4, (twBase - 6) * T);
   spawn(Grunt, twX + 8, (twBase - 11) * T);
@@ -428,7 +453,10 @@ function buildRefinery(game) {
   ter.fillRect(cx0 + 8, cTop, 3, 1, EMPTY);
   spawn(Turret, cx0 + 3, cTop * T);
   spawn(Grunt, cx0 + 5, (cTop + 12) * T);
-  spawn(Grunt, cx0 + 13, (cTop + 12) * T);
+  game.props.push({ type: 'chair', x: (cx0 + 13) * T + 8, y: (cTop + 12) * T, facing: -1 });
+  game.enemies.push(new Grunt(game, (cx0 + 13) * T, (cTop + 12) * T, 'sleep'));
+  game.enemies.push(new Poster(game, (cx0 + 1) * T, (cTop + 3) * T, 1));
+  game.enemies.push(new Chicken(game, (cx0 + 9) * T, (cTop + 12) * T));
   spawn(Rusher, cx0 + 9, (cTop + 12) * T);
   powAt(cx0 + 7, (cTop + 12) * T);
   powAt(cx0 + 15, (cTop + 12) * T);
@@ -454,8 +482,7 @@ function buildRefinery(game) {
       if (ter.get(x, y) !== BEDROCK) ter.set(x, y, STONE);
 
   game.goal = { x: 248 * T, y: (padY - 3) * T, w: 9 * T, h: 5 * T };
-  game.totalEnemies = game.enemies.filter(
-    e => e.hittable && e.kind !== 'barrel' && e.kind !== 'pipe').length;
+  game.totalEnemies = game.enemies.filter(isScoredEnemy).length;
   return ter;
 }
 

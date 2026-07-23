@@ -702,7 +702,7 @@ function drawBro(ctx, ch, x, y, facing, pose, t, aimX, aimY, flash, playerIndex)
 // --- enemies --------------------------------------------------------------
 
 class Grunt extends Ent {
-  constructor(g, x, y) {
+  constructor(g, x, y, duty) {
     super(x - 6, y - 16, 12, 16);
     this.g = g;
     this.hittable = true;
@@ -724,6 +724,10 @@ class Grunt extends Ent {
     this.replyT = 0;
     this.shoutCd = 0;
     this.muzzleT = 0;
+    this.duty = duty || 'patrol';   // patrol | sleep | warm
+    this.panicT = 0;
+    if (this.duty === 'sleep') { this.state = 'sleep'; this.snoreT = rand(1, 3); }
+    if (this.duty === 'warm') { this.state = 'stand'; this.stateT = 1e9; }
   }
 
   update(dt) {
@@ -737,6 +741,38 @@ class Grunt extends Ent {
     if (this.replyT > 0) {
       this.replyT -= dt;
       if (this.replyT <= 0) this.bark(pick(BARKS.reply), 1.5);
+    }
+
+    // Asleep on duty. Only something close, or something loud, will do it.
+    if (this.duty === 'sleep') {
+      this.vx = approach(this.vx, 0, 800 * dt);
+      this.snoreT -= dt;
+      if (this.snoreT <= 0) { this.bark('ZZZ...', 1.4); this.snoreT = rand(2.6, 4.5); }
+      if (g.nearestPlayer(this.cx, this.cy, 46)) this.wake();
+      this.move(g.terrain, dt);
+      if (this.touchingLava(g.terrain)) this.hurt(99, 0, 0, g);
+      return;
+    }
+
+    // A live grenade at your feet warrants a moment of reflection, then legs.
+    if (this.panicT > 0) {
+      this.panicT -= dt;
+      if (this.panicT > 0.95) {
+        this.vx = approach(this.vx, 0, 900 * dt);      // the pause. the stare.
+      } else {
+        this.vx = approach(this.vx, this.dir * 120, 800 * dt);
+        this.facing = this.dir;
+      }
+      this.move(g.terrain, dt);
+      if (this.touchingLava(g.terrain)) this.hurt(99, 0, 0, g);
+      return;
+    }
+    const nade = this.nearbyOrdnance();
+    if (nade) {
+      this.panicT = 1.25;
+      this.dir = sgn(this.cx - nade.cx) || this.dir;
+      this.bark(pick(BARKS.grenade), 1.2);
+      return;
     }
 
     const target = g.nearestPlayer(this.cx, this.cy, 200);
@@ -781,6 +817,25 @@ class Grunt extends Ent {
     this.barkT = dur || 1.5;
   }
 
+  // Woken by a nearby player or by anything going off close enough to matter.
+  wake() {
+    if (this.duty !== 'sleep') return;
+    this.duty = 'patrol';
+    this.enterStand(rand(0.3, 0.8));
+    this.bark(pick(BARKS.wake), 1.5);
+  }
+
+  scare() { this.wake(); }
+
+  // A live grenade, briefcase or C4 within flinching distance.
+  nearbyOrdnance() {
+    for (const o of this.g.projectiles) {
+      if (o.dead || o.fuse === undefined || o.fuse <= 0 || o.fuse > 1.1) continue;
+      if (dist2(this.cx, this.cy, o.cx, o.cy) < 60 * 60) return o;
+    }
+    return null;
+  }
+
   // Is there floor to keep walking on, in the given direction?
   hasFooting(dir) {
     return this.g.terrain.solidPx(this.cx + dir * 10, this.y + this.h + 3);
@@ -823,6 +878,11 @@ class Grunt extends Ent {
 
     // standing: slow down, glance around, occasionally start a conversation
     this.vx = approach(this.vx, 0, 700 * dt);
+    if (this.duty === 'warm') {
+      if (this.stateT > 1e8) this.stateT = rand(2, 5);
+      if (this.stateT <= 0) { this.bark(pick(BARKS.warm), 1.6); this.stateT = rand(4, 8); }
+      return;
+    }
     if (this.glanceT > 0) {
       this.glanceT -= dt;
       if (this.glanceT <= 0) {
@@ -881,7 +941,8 @@ class Grunt extends Ent {
 
   draw(ctx, camX, camY) {
     if (this.muzzleT > 0) this.muzzleT -= 1 / 60;
-    this.anim.set(!this.onGround ? 'fall' : Math.abs(this.vx) > 8 ? 'run' : 'idle');
+    this.anim.set(this.duty === 'sleep' ? 'sleep'
+      : !this.onGround ? 'fall' : Math.abs(this.vx) > 8 ? 'run' : 'idle');
     drawChar(ctx, ENEMY_LOOK, this.cx - camX, this.y + this.h - camY, {
       facing: this.facing, anim: this.anim,
       aimX: this.facing, aimY: 0, muzzle: this.muzzleT > 0,
@@ -1265,6 +1326,170 @@ class Pow extends Ent {
   }
 }
 
+// A refinery chicken. Wanders, pecks, and completely loses its composure when
+// something explodes nearby - at which point it may lay something unwise.
+class Chicken extends Ent {
+  constructor(g, x, y) {
+    super(x - 5, y - 9, 9, 9);
+    this.g = g;
+    this.hittable = true;
+    this.hp = 1;
+    this.kind = 'chicken';
+    this.dir = Math.random() < 0.5 ? -1 : 1;
+    this.panic = 0;
+    this.layCd = 0;
+    this.stateT = rand(0.5, 2);
+    this.pecking = false;
+    this.t = rand(0, 6);
+  }
+
+  scare() { this.panic = Math.max(this.panic, rand(2.2, 3.8)); }
+
+  update(dt) {
+    const g = this.g;
+    this.t += dt;
+    this.stateT -= dt;
+    this.gravity(dt);
+
+    // a nearby player is alarming, an explosion far more so
+    const near = g.nearestPlayer(this.cx, this.cy, 44);
+    if (near) this.panic = Math.max(this.panic, 1.1);
+
+    if (this.panic > 0) {
+      this.panic -= dt;
+      this.pecking = false;
+      if (near) this.dir = sgn(this.cx - near.cx) || this.dir;
+      this.vx = approach(this.vx, this.dir * 118, 900 * dt);
+      this.facing = this.dir;
+      if (this.onGround && Math.random() < 0.06) this.vy = -170;   // panicked flutter
+      if (this.hitWall && this.stateT <= 0) { this.dir = -this.dir; this.stateT = 0.3; }
+
+      this.layCd -= dt;
+      if (this.onGround && this.layCd <= 0) {
+        this.layCd = rand(0.7, 1.4);
+        if (Math.random() < 0.22) {
+          // a frightened chicken lays a live grenade. Long fuse, small blast,
+          // clearly visible - funny rather than unfair.
+          const nade = new Grenade(g, this.cx, this.y + this.h - 2, rand(-30, 30), -60, null);
+          nade.fuse = 1.7;
+          nade.blastR = 26;
+          nade.blastDmg = 24;
+          g.projectiles.push(nade);
+          this.bark = 'BWAAK!';
+          this.barkT = 1.1;
+          sfx('beep');
+        } else {
+          g.burst(this.cx, this.y + this.h - 2, 3, '#f2ead6', 60, 0.5);
+        }
+      }
+    } else {
+      this.vx = approach(this.vx, this.pecking ? 0 : this.dir * 26, 400 * dt);
+      this.facing = this.dir;
+      if (this.hitWall || (this.onGround &&
+        !g.terrain.solidPx(this.cx + this.dir * 8, this.y + this.h + 3))) {
+        if (this.stateT <= 0) { this.dir = -this.dir; this.stateT = 0.5; }
+      }
+      if (this.stateT <= 0) {
+        this.pecking = !this.pecking;
+        this.stateT = rand(0.8, 2.4);
+      }
+    }
+
+    if (this.barkT > 0) this.barkT -= dt;
+    this.move(g.terrain, dt);
+    if (this.touchingLava(g.terrain)) this.hurt(99, 0, 0, g);
+  }
+
+  hurt(dmg, kx, ky, g) {
+    if (this.dead) return;
+    this.dead = true;
+    g.gib(this.cx, this.cy, CHICKEN_LOOK);
+    g.burst(this.cx, this.cy, 10, '#f2ead6', 90, 0.9);
+    sfx('enemyDie');
+  }
+
+  draw(ctx, camX, camY) {
+    const x = Math.round(this.cx - camX), y = Math.round(this.y + this.h - camY);
+    const f = this.facing;
+    const bob = this.panic > 0 ? Math.round(Math.sin(this.t * 26) * 1)
+      : Math.round(Math.sin(this.t * 4) * 0.5);
+    const duck = this.pecking && this.panic <= 0 ? 2 : 0;
+
+    ctx.fillStyle = '#d8b23a';                       // legs
+    ctx.fillRect(x - 2, y - 2, 1, 2);
+    ctx.fillRect(x + 1, y - 2, 1, 2);
+    ctx.fillStyle = '#f2ead6';                       // body
+    ctx.fillRect(x - 4, y - 7 + bob, 8, 5);
+    ctx.fillStyle = '#dcd2ba';                       // wing
+    ctx.fillRect(x - 3 - f, y - 6 + bob, 4, 3);
+    ctx.fillStyle = '#f2ead6';                       // tail
+    ctx.fillRect(x - 5 * f, y - 8 + bob, 2, 3);
+    ctx.fillStyle = '#f2ead6';                       // head
+    ctx.fillRect(x + f * 2, y - 10 + bob + duck, 3, 3);
+    ctx.fillStyle = '#c8342a';                       // comb
+    ctx.fillRect(x + f * 2, y - 11 + bob + duck, 3, 1);
+    ctx.fillStyle = '#e8a52a';                       // beak
+    ctx.fillRect(x + f * 4, y - 9 + bob + duck, 2, 1);
+    ctx.fillStyle = '#1a1410';
+    ctx.fillRect(x + f * 3, y - 10 + bob + duck, 1, 1);
+
+    if (this.barkT > 0) drawBark(ctx, this.bark, this.cx - camX, this.y - camY, '#ffe6a0');
+  }
+}
+
+// Regime propaganda. Shooting it does not destroy it - it just stops being
+// flattering.
+class Poster extends Ent {
+  constructor(g, x, y, facing) {
+    super(x, y, 12, 16);
+    this.g = g;
+    this.hittable = true;
+    this.hp = 1;
+    this.kind = 'poster';
+    this.defaced = false;
+    this.facing = facing || 1;
+  }
+  update() { }
+  hurt(dmg, kx, ky, g) {
+    if (this.defaced) return;
+    this.defaced = true;
+    g.burst(this.cx, this.cy, 7, '#d8cfae', 90, 0.5);
+    sfx('dig');
+  }
+  draw(ctx, camX, camY) {
+    const x = Math.round(this.x - camX), y = Math.round(this.y - camY);
+    ctx.fillStyle = this.defaced ? '#8a7a56' : '#c2a24a';
+    ctx.fillRect(x, y, 12, 16);
+    ctx.fillStyle = '#7a2018';
+    ctx.fillRect(x, y, 12, 3);
+    ctx.fillRect(x, y + 13, 12, 3);
+    // a stern official face
+    ctx.fillStyle = this.defaced ? '#6d5f42' : '#e6d6a8';
+    ctx.fillRect(x + 3, y + 5, 6, 6);
+    ctx.fillStyle = '#3a2f1e';
+    ctx.fillRect(x + 4, y + 7, 1, 1);
+    ctx.fillRect(x + 7, y + 7, 1, 1);
+    if (this.defaced) {
+      ctx.fillStyle = '#1c1a14';                   // moustache and blacked eyes
+      ctx.fillRect(x + 4, y + 9, 4, 2);
+      ctx.fillRect(x + 3, y + 6, 3, 2);
+      ctx.fillRect(x + 7, y + 6, 2, 2);
+      ctx.fillStyle = '#b8452c';                   // a rude scrawl across it
+      ctx.fillRect(x + 1, y + 4, 10, 1);
+      ctx.fillRect(x + 2, y + 12, 8, 1);
+    } else {
+      ctx.fillStyle = '#3a2f1e';
+      ctx.fillRect(x + 3, y + 12, 6, 1);
+    }
+  }
+}
+
+const CHICKEN_LOOK = {
+  weapon: 'none', head: 'band', accent: '#c8342a',
+  skin: '#f2ead6', hair: '#c8342a', shirt: '#f2ead6', shirt2: '#dcd2ba',
+  pants: '#d8b23a', boots: '#c89a20'
+};
+
 // Short, shouty, and deliberately mundane when they think nobody is listening.
 const BARKS = {
   alert: ['CONTACT!', 'THERE! THERE!', 'INTRUDERS!', 'OPEN FIRE!', 'THEY FOUND US!',
@@ -1274,8 +1499,20 @@ const BARKS = {
     'THREE MORE HOURS', 'THE PAY IS BAD'],
   reply: ['MHM', 'NOPE', 'SAME', 'DEFINITELY NOT', 'ASK THE SARGE', 'HUH',
     'DONT START', 'YEAH', 'NO IDEA', 'SURE'],
-  charge: ['RAAAA!', 'GET THEM!', 'CHARGE!', 'YAAA!']
+  charge: ['RAAAA!', 'GET THEM!', 'CHARGE!', 'YAAA!'],
+  grenade: ['GRENADE!', 'OH.', 'WHOSE IS THAT?', 'MOVE! MOVE!', 'NOT LIKE THIS',
+    'THATS NOT MINE', 'OH NO'],
+  wake: ['WHAT? WHAT!', 'IM UP! IM UP!', 'I WASNT ASLEEP', 'FIVE MORE MINUTES',
+    'WHO SAID THAT?'],
+  warm: ['TOASTY', 'LOVELY LITTLE FIRE', 'NICE AND WARM', 'WHATS IN THIS BARREL?',
+    'BEST SPOT IN CAMP']
 };
+
+// Only these count toward the mission tally. Chickens, posters, barrels and
+// pipe segments are scenery you happen to be able to shoot.
+function isScoredEnemy(e) {
+  return e.kind === 'grunt' || e.kind === 'rusher' || e.kind === 'turret';
+}
 
 const ENEMY_SHOT = {
   speed: 230, life: 2.2, carveR: 2.4, carveDmg: 1,

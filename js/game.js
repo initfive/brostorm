@@ -172,6 +172,12 @@ class Game {
       if (!p.alive) continue;
       if (dist2(x, y, p.cx, p.cy) < r2 * 0.85) p.hurt(99, 0, 0, this);
     }
+    // Anything further out is merely startled.
+    const startle = r * 3.5;
+    for (const e of this.enemies) {
+      if (e.dead || !e.scare) continue;
+      if (dist2(x, y, e.cx, e.cy) < startle * startle) e.scare();
+    }
 
     for (let i = 0; i < 22; i++) {
       const a = rand(0, Math.PI * 2), s = rand(30, r * 7);

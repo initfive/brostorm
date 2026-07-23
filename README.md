@@ -99,6 +99,15 @@ mid-air to gain height.
 - **Guards are off duty until you turn up.** They stand around, glance about,
   wander a few paces and gossip with whoever is nearby. Spot one and it shouts
   a warning to the others.
+- **Some of them are not working at all.** There is a man asleep in a chair at
+  every posting, and another warming his hands over a barrel of explosives.
+  Both can be woken by a sufficiently loud argument nearby.
+- **Roll a live grenade at a guard** and he will stop, look at it, say something
+  regrettable, and only then start running.
+- **Chickens.** Calm until something detonates. A frightened chicken has been
+  known to lay a live grenade, so give them room.
+- **Shoot the propaganda posters.** They do not break. They just stop being
+  flattering.
 - **Press into a wall in mid-air to cling**, hold up to climb, jump to kick off.
   This is the main way to handle vertical terrain.
 - The camera is shared and will push a straggler along, so stay together.
