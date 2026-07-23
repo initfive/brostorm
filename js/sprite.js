@@ -296,6 +296,60 @@ function drawChar(ctx, look, cx, feetY, o) {
   }
 }
 
+// --- 3x5 bitmap font ------------------------------------------------------
+// Canvas fillText at 5px turns to mush once the frame is upscaled, so barks
+// use a hand-built pixel font instead. Each glyph is 5 rows of 3 bits.
+
+const FONT3 = {
+  A: '010101111101101', B: '110101110101110', C: '011100100100011',
+  D: '110101101101110', E: '111100110100111', F: '111100110100100',
+  G: '011100101101011', H: '101101111101101', I: '111010010010111',
+  J: '001001001101010', K: '101101110101101', L: '100100100100111',
+  M: '101111111101101', N: '101110111011101', O: '010101101101010',
+  P: '110101110100100', Q: '010101101110011', R: '110101110101101',
+  S: '011100010001110', T: '111010010010010', U: '101101101101011',
+  V: '101101101010010', W: '101101111111101', X: '101101010101101',
+  Y: '101101010010010', Z: '111001010100111',
+  0: '111101101101111', 1: '010110010010111', 2: '110001010100111',
+  3: '111001011001111', 4: '101101111001001', 5: '111100111001111',
+  6: '111100111101111', 7: '111001001001001', 8: '111101111101111',
+  9: '111101111001111',
+  '!': '010010010000010', '?': '110001010000010', '.': '000000000000010',
+  ',': '000000000010010', "'": '010010000000000', '-': '000000111000000',
+  ':': '000010000010000', ' ': '000000000000000'
+};
+
+const FONT3_W = 4;   // 3px glyph + 1px tracking
+
+function textWidth3(s) { return s.length * FONT3_W - 1; }
+
+function drawText3(ctx, text, x, y, color) {
+  ctx.fillStyle = color;
+  for (let i = 0; i < text.length; i++) {
+    const g = FONT3[text[i]] || FONT3[' '];
+    const gx = x + i * FONT3_W;
+    for (let r = 0; r < 5; r++) {
+      for (let c = 0; c < 3; c++) {
+        if (g[r * 3 + c] === '1') ctx.fillRect(gx + c, y + r, 1, 1);
+      }
+    }
+  }
+}
+
+// Speech bubble above a character.
+function drawBark(ctx, text, cx, topY, color) {
+  const w = textWidth3(text);
+  const x = Math.round(cx - w / 2), y = Math.round(topY) - 11;
+  ctx.fillStyle = 'rgba(8,10,16,0.86)';
+  ctx.fillRect(x - 3, y - 3, w + 6, 11);
+  ctx.fillStyle = 'rgba(255,255,255,0.16)';
+  ctx.fillRect(x - 3, y - 3, w + 6, 1);
+  ctx.fillStyle = 'rgba(8,10,16,0.86)';
+  ctx.fillRect(Math.round(cx) - 2, y + 8, 4, 2);
+  ctx.fillRect(Math.round(cx) - 1, y + 10, 2, 1);
+  drawText3(ctx, text, x, y, color || '#e8ecf4');
+}
+
 // --- scenery props --------------------------------------------------------
 // Purely decorative structures drawn between the terrain and the entities.
 

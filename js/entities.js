@@ -714,6 +714,16 @@ class Grunt extends Ent {
     this.anim = new Anim();
     this.anim.t = rand(0, 2);
     this.kind = 'grunt';
+    this.state = 'stand';
+    this.stateT = rand(0.4, 2.6);
+    this.glanceT = rand(0.8, 2.6);
+    this.turnCd = 0;
+    this.spotted = false;
+    this.barkText = '';
+    this.barkT = 0;
+    this.replyT = 0;
+    this.shoutCd = 0;
+    this.muzzleT = 0;
   }
 
   update(dt) {
@@ -722,8 +732,25 @@ class Grunt extends Ent {
     this.anim.update(dt);
     this.gravity(dt);
 
+    if (this.barkT > 0) this.barkT -= dt;
+    if (this.shoutCd > 0) this.shoutCd -= dt;
+    if (this.replyT > 0) {
+      this.replyT -= dt;
+      if (this.replyT <= 0) this.bark(pick(BARKS.reply), 1.5);
+    }
+
     const target = g.nearestPlayer(this.cx, this.cy, 200);
     if (target && g.terrain.clearLine(this.cx, this.cy, target.cx, target.cy)) {
+      if (!this.spotted) {
+        this.spotted = true;
+        this.state = 'alert';
+        // Only shout on a fresh sighting. Without the cooldown, ducking in and
+        // out of cover makes a guard yell every couple of seconds.
+        if (this.shoutCd <= 0) {
+          this.bark(pick(BARKS.alert), 1.6);
+          this.shoutCd = 6;
+        }
+      }
       this.alert = 1.2;
       this.facing = sgn(target.cx - this.cx) || this.facing;
       this.dir = this.facing;
@@ -741,16 +768,103 @@ class Grunt extends Ent {
       }
     } else {
       this.alert -= dt;
-      this.vx = approach(this.vx, this.dir * 46, 500 * dt);
-      this.facing = this.dir;
-      // turn at walls and at the edge of a drop
-      const ahead = this.cx + this.dir * 8;
-      if (this.hitWall) this.dir = -this.dir;
-      else if (this.onGround && !g.terrain.solidPx(ahead, this.y + this.h + 3)) this.dir = -this.dir;
+      if (this.alert <= 0) this.spotted = false;
+      this.idleBehaviour(dt);
     }
 
     this.move(g.terrain, dt);
     if (this.touchingLava(g.terrain)) this.hurt(99, 0, 0, g);
+  }
+
+  bark(text, dur) {
+    this.barkText = text;
+    this.barkT = dur || 1.5;
+  }
+
+  // Is there floor to keep walking on, in the given direction?
+  hasFooting(dir) {
+    return this.g.terrain.solidPx(this.cx + dir * 10, this.y + this.h + 3);
+  }
+
+  blocked(dir) {
+    return this.g.terrain.solidPx(this.cx + dir * 10, this.cy);
+  }
+
+  // Off-duty behaviour. Guards stand around, glance about, wander a few paces
+  // and gossip with whoever is nearby. The turn cooldown matters: without it a
+  // guard on a narrow perch flips direction every single frame and vibrates.
+  idleBehaviour(dt) {
+    const g = this.g;
+    this.stateT -= dt;
+    if (this.turnCd > 0) this.turnCd -= dt;
+
+    if (this.state === 'walk') {
+      this.vx = approach(this.vx, this.dir * 44, 500 * dt);
+      this.facing = this.dir;
+
+      const stuck = this.blocked(this.dir) || this.hitWall;
+      const noFloor = this.onGround && !this.hasFooting(this.dir);
+      if (stuck || noFloor) {
+        // If there is nowhere to go either way, stop and loiter rather than
+        // rattling between two edges.
+        const canGoBack = !this.blocked(-this.dir) &&
+          (!this.onGround || this.hasFooting(-this.dir));
+        if (canGoBack && this.turnCd <= 0 && Math.random() < 0.5) {
+          this.dir = -this.dir;
+          this.turnCd = 0.8;
+          this.stateT = rand(1.0, 2.6);
+        } else {
+          this.enterStand(rand(1.5, 3.5));
+        }
+      }
+      if (this.stateT <= 0) this.enterStand(rand(0.8, 2.4));
+      return;
+    }
+
+    // standing: slow down, glance around, occasionally start a conversation
+    this.vx = approach(this.vx, 0, 700 * dt);
+    if (this.glanceT > 0) {
+      this.glanceT -= dt;
+      if (this.glanceT <= 0) {
+        this.facing = -this.facing;
+        this.glanceT = rand(1.4, 3.5);
+      }
+    }
+    if (this.stateT <= 0) {
+      if (this.barkT <= 0 && Math.random() < 0.55 && this.tryChat()) {
+        this.enterStand(rand(1.6, 2.6));
+      } else if (Math.random() < 0.62) {
+        this.state = 'walk';
+        this.stateT = rand(1.0, 2.8);
+        if (this.turnCd <= 0 && Math.random() < 0.5) { this.dir = -this.dir; this.turnCd = 0.6; }
+      } else {
+        this.enterStand(rand(1.0, 2.8));
+      }
+    }
+  }
+
+  enterStand(t) {
+    this.state = 'stand';
+    this.stateT = t;
+    this.glanceT = rand(0.8, 2.6);
+  }
+
+  // Find an idle neighbour, face them, say something and wait for a reply.
+  tryChat() {
+    for (const e of this.g.enemies) {
+      if (e === this || e.dead || e.kind !== 'grunt') continue;
+      if (e.spotted || e.barkT > 0 || e.replyT > 0) continue;
+      const dx = e.cx - this.cx;
+      if (Math.abs(dx) > 88 || Math.abs(e.cy - this.cy) > 24) continue;
+      if (!this.g.terrain.clearLine(this.cx, this.cy, e.cx, e.cy)) continue;
+      this.facing = sgn(dx) || this.facing;
+      e.facing = -this.facing;
+      e.enterStand(2.2);
+      e.replyT = rand(0.9, 1.3);
+      this.bark(pick(BARKS.chat), 1.7);
+      return true;
+    }
+    return false;
   }
 
   hurt(dmg, kx, ky, g) {
@@ -773,9 +887,13 @@ class Grunt extends Ent {
       aimX: this.facing, aimY: 0, muzzle: this.muzzleT > 0,
       shadowY: groundBelow(this.g.terrain, this.cx, this.y + this.h) - camY
     });
-    if (this.alert > 0.9) {
+    if (this.alert > 0.9 && this.barkT <= 0) {
       ctx.fillStyle = '#ff4a3a';
       ctx.fillRect(Math.round(this.cx - camX) - 1, Math.round(this.y - camY) - 9, 2, 5);
+    }
+    if (this.barkT > 0) {
+      drawBark(ctx, this.barkText, this.cx - camX, this.y - camY,
+        this.spotted ? '#ffb0a0' : '#dfe4ee');
     }
   }
 }
@@ -791,6 +909,9 @@ class Rusher extends Ent {
     this.anim = new Anim();
     this.anim.t = rand(0, 2);
     this.charging = 0;
+    this.turnCd = 0;
+    this.barkText = '';
+    this.barkT = 0;
     this.kind = 'rusher';
   }
 
@@ -800,8 +921,10 @@ class Rusher extends Ent {
     this.anim.update(dt);
     this.gravity(dt);
 
+    if (this.barkT > 0) this.barkT -= dt;
     const target = g.nearestPlayer(this.cx, this.cy, 260);
     if (target && g.terrain.clearLine(this.cx, this.cy, target.cx, target.cy)) {
+      if (this.charging <= 0) { this.barkText = pick(BARKS.charge); this.barkT = 1.3; }
       this.charging = 1.4;
       this.dir = sgn(target.cx - this.cx) || this.dir;
     } else {
@@ -811,14 +934,16 @@ class Rusher extends Ent {
     this.vx = approach(this.vx, this.dir * speed, 900 * dt);
     this.facing = this.dir;
 
-    const ahead = this.cx + this.dir * 8;
+    if (this.turnCd > 0) this.turnCd -= dt;
+    const ahead = this.cx + this.dir * 10;
     if (this.hitWall) {
       // hop over low obstacles instead of getting stuck on them
       if (this.onGround && !g.terrain.solidPx(ahead, this.y - 6)) this.vy = -280;
-      else this.dir = -this.dir;
-    } else if (this.onGround && this.charging <= 0 &&
+      else if (this.turnCd <= 0) { this.dir = -this.dir; this.turnCd = 0.5; }
+    } else if (this.onGround && this.charging <= 0 && this.turnCd <= 0 &&
       !g.terrain.solidPx(ahead, this.y + this.h + 3)) {
       this.dir = -this.dir;
+      this.turnCd = 0.5;
     }
 
     this.move(g.terrain, dt);
@@ -849,6 +974,9 @@ class Rusher extends Ent {
       facing: this.facing, anim: this.anim, aimX: this.facing, aimY: 0,
       shadowY: groundBelow(this.g.terrain, this.cx, this.y + this.h) - camY
     });
+    if (this.barkT > 0) {
+      drawBark(ctx, this.barkText, this.cx - camX, this.y - camY, '#ffc2e0');
+    }
   }
 }
 
@@ -1136,6 +1264,18 @@ class Pow extends Ent {
     }
   }
 }
+
+// Short, shouty, and deliberately mundane when they think nobody is listening.
+const BARKS = {
+  alert: ['CONTACT!', 'THERE! THERE!', 'INTRUDERS!', 'OPEN FIRE!', 'THEY FOUND US!',
+    'SOUND THE ALARM!', 'I SEE THEM!', 'NOT AGAIN!'],
+  chat: ['QUIET SHIFT', 'SEEN MY LUNCH?', 'MY FEET HURT', 'I HATE THIS POST',
+    'NEW BOOTS', 'IS IT FRIDAY?', 'DID YOU HEAR THAT?', 'SMELLS IN HERE',
+    'THREE MORE HOURS', 'THE PAY IS BAD'],
+  reply: ['MHM', 'NOPE', 'SAME', 'DEFINITELY NOT', 'ASK THE SARGE', 'HUH',
+    'DONT START', 'YEAH', 'NO IDEA', 'SURE'],
+  charge: ['RAAAA!', 'GET THEM!', 'CHARGE!', 'YAAA!']
+};
 
 const ENEMY_SHOT = {
   speed: 230, life: 2.2, carveR: 2.4, carveDmg: 1,

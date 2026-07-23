@@ -230,7 +230,10 @@ class Game {
 
   checkGameOver() {
     if (this.lives > 0) return;
-    if (this.joinedPlayers().every(p => !p.alive)) {
+    // every() is true for an empty list, which would declare a game over the
+    // instant nobody is joined. Require at least one bro to have been in play.
+    const joined = this.joinedPlayers();
+    if (joined.length && joined.every(p => !p.alive)) {
       this.state = 'over';
       this.endTimer = 0;
       sfx('gameOver');

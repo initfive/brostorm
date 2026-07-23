@@ -96,6 +96,9 @@ mid-air to gain height.
 - **Everything except the world border is destructible.** Dirt is soft, wood is
   softer, stone takes real ordnance. Bedrock never breaks.
 - **Barrels chain-react.** Shoot one near a bunker and watch the floor go.
+- **Guards are off duty until you turn up.** They stand around, glance about,
+  wander a few paces and gossip with whoever is nearby. Spot one and it shouts
+  a warning to the others.
 - **Press into a wall in mid-air to cling**, hold up to climb, jump to kick off.
   This is the main way to handle vertical terrain.
 - The camera is shared and will push a straggler along, so stay together.
